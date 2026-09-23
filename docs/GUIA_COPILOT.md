@@ -18,7 +18,7 @@
 
   | Fluxo           | Atualização | Observação |
   |-----------------|-------------|------------|
-  | `quadro`        | semanal     | Headcount. **É a base de referência** para completar as outras |
+  | `quadro`        | semanal     | Headcount, **foto do fechamento de cada mês**. Base de referência para completar as outras |
   | `admitidos`     | semanal     | Completado com colunas/valores do quadro |
   | `demitidos`     | semanal     | Completado com colunas/valores do quadro |
   | `movimentacoes` | mensal      | Transferências, promoções etc. |
@@ -34,6 +34,12 @@
   **o layout de saída (nomes, tipos e ordem das colunas) não pode mudar**.
 - Volume: **mais de 2,5 milhões de linhas** somando as bases. Performance é prioridade.
 - Dados pessoais (CPF, nome etc.): **LGPD**. Nenhum dado real vai para o git.
+- **`periodo` é sempre o 1º dia do mês.** A **CHAVE M** (`dd/MM/yyyy_matricula`, ex.
+  `01/05/2026_000123`) liga admitidos, demitidos e movimentações à foto do quadro **do
+  mesmo mês**. É a chave do enriquecimento (`lp.chave_m`, coluna `chave_m`/`CHAVE M`).
+- Os arquivos do quadro podem ser de um ano (`Quadro 2020`), de vários anos
+  (`Quadro 2018-2019`) ou de um mês (`Quadro 05-2026`). O período vem da coluna de
+  competência ou do nome do arquivo; mês repetido entre arquivos usa o mais recente.
 
 ## 2. Arquitetura (onde cada coisa mora)
 
@@ -96,6 +102,8 @@ volume) e grava CSV e Parquet.
    | `para_booleano` | Sim/Não/S/N/1/0/X | `Logical.From` |
    | `converter_tipos` | aplica os tipos do esquema | `Table.TransformColumnTypes` |
    | `inicio_mes` | 1º dia do mês | `Date.StartOfMonth` |
+   | `chave_m` | CHAVE M `dd/MM/yyyy_matricula` | `Date.ToText(..., "dd/MM/yyyy") & "_" & ...` |
+   | `periodo_do_nome_arquivo` | `MM-AAAA` do nome do arquivo | `Text.BetweenDelimiters` no `Source.Name` |
    | `meses_entre` | meses completos entre datas | `DATEDIF(...,"M")` |
    | `ultimo_por_chave` | registro mais recente por chave | `Table.Sort` + `Table.Distinct` |
    | `completar_com_referencia` | merge que completa colunas vazias/ausentes | `Table.NestedJoin` + `ExpandTableColumn` + `if null` |

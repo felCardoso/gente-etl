@@ -19,7 +19,7 @@ def test_execucao_completa_demo(cfg):
     csv = pl.read_csv(saida / "base_gente.csv", separator=";", infer_schema=False)
 
     # contrato: coluna de origem + colunas do esquema, na ordem
-    assert parquet.columns == ["base", *cfg.esq.nomes]
+    assert parquet.columns == ["base", *[c.nome_saida for c in cfg.esq.coluna]]
     assert csv.columns == parquet.columns and csv.height == parquet.height
     assert set(parquet["base"]) == {
         "QUADRO",
@@ -34,6 +34,18 @@ def test_execucao_completa_demo(cfg):
     dem = parquet.filter(pl.col("base") == "DEMITIDOS")
     assert dem["nome"].null_count() == 0 and dem["centro_custo"].null_count() == 0
     assert dem["tempo_empresa_meses"].null_count() == 0
+
+    # CHAVE M: dd/MM/yyyy do período + "_" + matrícula; eventos acham a foto do mesmo mês
+    assert dem["CHAVE M"].to_list() == [
+        f"{p:%d/%m/%Y}_{m}" for p, m in zip(dem["periodo"], dem["matricula"], strict=True)
+    ]
+    cobertura = {r.escopo: r for r in ex.validacoes if r.regra == "cobertura_quadro"}
+    assert set(cobertura) == {"admitidos", "demitidos", "movimentacoes"}
+    assert all(r.ocorrencias == 0 for r in cobertura.values())
+
+    # quadro: "Quadro 2026.xlsx" (jun+jul) + "Quadro 08-2026.xlsx" (período pelo nome)
+    q = parquet.filter(pl.col("base") == "QUADRO")
+    assert sorted(q["periodo"].unique().to_list()) == [date(2026, 6, 1), date(2026, 7, 1), REF]
 
     # reconciliação fecha com os dados simulados
     rec = [r for r in ex.validacoes if r.regra == "reconciliacao"]

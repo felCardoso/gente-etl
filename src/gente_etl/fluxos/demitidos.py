@@ -17,7 +17,10 @@ class Demitidos(Fluxo):
     colunas_data = ("data_admissao", "data_demissao")
 
     def transformar(self, lf: pl.LazyFrame) -> pl.LazyFrame:
-        lf = lf.with_columns(lp.inicio_mes(pl.col("data_demissao")).alias("periodo"))
+        # Período = mês do evento; CHAVE M liga à foto do quadro desse mesmo mês.
+        lf = lf.with_columns(lp.inicio_mes(pl.col("data_demissao")).alias("periodo")).pipe(
+            self.definir_chave_m
+        )
         lf = self.enriquecer_com_quadro(lf)
 
         # >>> PONTO DE MIGRAÇÃO: colunas calculadas / filtros específicos de demitidos.

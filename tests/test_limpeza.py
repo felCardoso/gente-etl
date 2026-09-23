@@ -137,3 +137,24 @@ def test_completar_com_referencia_colunas_especificas():
 def test_remover_linhas_vazias_ignora_colunas_internas():
     lf = pl.LazyFrame({"a": [None, "x"], "b": [None, None], "_arquivo": ["f", "f"]})
     assert lp.remover_linhas_vazias(lf).collect().height == 1
+
+
+def test_chave_m():
+    df = pl.DataFrame({"p": [date(2026, 5, 1), None], "m": ["000123", "1"]})
+    r = df.select(lp.chave_m(pl.col("p"), pl.col("m"))).to_series().to_list()
+    assert r == ["01/05/2026_000123", None]
+
+
+@pytest.mark.parametrize(
+    ("arquivo", "esperado"),
+    [
+        ("Quadro 05-2026.xlsx", date(2026, 5, 1)),
+        ("quadro 12-2025 (1).xlsx", date(2025, 12, 1)),
+        ("Quadro 2020.xlsx", None),
+        ("Quadro 2018-2019.xlsx", None),
+        ("Quadro 13-2026.xlsx", None),
+    ],
+)
+def test_periodo_do_nome_arquivo(arquivo, esperado):
+    df = pl.DataFrame({"a": [arquivo]})
+    assert df.select(lp.periodo_do_nome_arquivo(pl.col("a"))).item() == esperado

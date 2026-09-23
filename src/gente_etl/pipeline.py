@@ -259,6 +259,7 @@ def executar(
             ctx.resultados.get("admitidos"),
             ctx.resultados.get("demitidos"),
             v.tolerancia_reconciliacao,
+            v.situacoes_fora_hc,
         )
     hist = ler_historico(cfg)
     execucao.validacoes += regras.variacao_volume(

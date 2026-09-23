@@ -126,9 +126,12 @@ Cada fluxo segue `extrair → transformar → validar`:
    são aceitas como data real, texto `dd/mm/aaaa`/`aaaa-mm-dd` ou serial do Excel; os
    números como `1.234,56`, `R$`, `%`.
 2. **Transformar** (específico): regras de negócio de cada base em
-   `src/gente_etl/fluxos/<fluxo>.py`. Admitidos, demitidos e movimentações são
-   **completados com o quadro**: colunas ausentes ou vazias recebem o valor do registro
-   mais recente da mesma matrícula, e o valor da própria base tem prioridade.
+   `src/gente_etl/fluxos/<fluxo>.py`. O quadro é a foto do fechamento de cada mês; os
+   arquivos podem ser de um ano, de vários anos ou de um mês, e o período vem da coluna de
+   competência ou do nome do arquivo (`Quadro 05-2026`). Admitidos, demitidos e
+   movimentações são **completados com o quadro do mesmo mês pela CHAVE M**
+   (`dd/MM/yyyy_matricula`): colunas ausentes ou vazias recebem o valor do quadro, e o
+   valor da própria base tem prioridade.
 3. **Validar**: regras genéricas e específicas. Depois tudo é **empilhado** no layout do
    esquema, com a coluna `base` indicando a origem, validado de novo e gravado de forma
    atômica. O relatório (`relatorio.json` + CSVs de amostra de cada problema) fica em

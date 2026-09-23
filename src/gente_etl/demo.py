@@ -130,17 +130,21 @@ def gerar_dados(
         ativos[c.chapa] = c
         seq += 1
 
-    fotos: list[tuple[date, list[Colaborador]]] = []
+    # foto do fechamento: (mês, [(colaborador, situação)]); demitidos do mês aparecem com "D"
+    fotos: list[tuple[date, list[tuple[Colaborador, str]]]] = []
     admitidos: list[tuple[Colaborador, date]] = []
     demitidos: list[tuple[Colaborador, date, str]] = []
     movimentos: list[dict] = []
 
     for i in range(meses):
         mes = _mes(ano, mes_inicial + i)
+        saidas_mes: list[Colaborador] = []
         if i > 0:
             saem = rng.sample(sorted(ativos), k=max(1, len(ativos) // 40))
             for chapa in saem:
-                demitidos.append((ativos.pop(chapa), _dia(rng, mes), rng.choice(TIPOS_DEMISSAO)))
+                c = ativos.pop(chapa)
+                saidas_mes.append(c)
+                demitidos.append((c, _dia(rng, mes), rng.choice(TIPOS_DEMISSAO)))
             for _ in range(max(1, colaboradores // 30)):
                 c = _novo(rng, seq, _dia(rng, mes))
                 ativos[c.chapa] = c
@@ -162,21 +166,27 @@ def gerar_dados(
                     }
                 )
                 c.gerencia, c.cc = nova_ger, novo_cc
-        fotos.append((mes, [Colaborador(**vars(c)) for c in ativos.values()]))
+        fotos.append(
+            (
+                mes,
+                [(Colaborador(**vars(c)), "A") for c in ativos.values()]
+                + [(Colaborador(**vars(c)), "D") for c in saidas_mes],
+            )
+        )
 
-    # ---- Quadro: um arquivo por mês; o último usa cabeçalhos "amigáveis" e datas em texto
-    arquivos["quadro"] = []
-    for i, (mes, pessoas) in enumerate(fotos):
-        ultimo = i == len(fotos) - 1
-        linhas = [
+    # ---- Quadro: meses anteriores empilhados num arquivo do ano ("Quadro 2026.xlsx");
+    #      o último mês num arquivo mensal ("Quadro MM-AAAA.xlsx") SEM coluna de competência
+    #      (período vem do nome), com cabeçalhos "amigáveis" e datas em texto.
+    def _linhas(mes: date, pessoas: list[tuple[Colaborador, str]], texto: bool) -> list[dict]:
+        return [
             {
                 "COMPETENCIA": mes,
                 "CODCOLIGADA": "1",
                 "CODFILIAL": "01",
                 "CHAPA": p.chapa,
                 "NOME": p.nome,
-                "CPF": p.cpf.lstrip("0") if ultimo else p.cpf,  # Excel "come" zeros
-                "DTNASCIMENTO": p.nascimento,
+                "CPF": p.cpf.lstrip("0") if texto else p.cpf,  # Excel "come" zeros
+                "DTNASCIMENTO": p.nascimento.strftime("%d/%m/%Y") if texto else p.nascimento,
                 "SEXO": p.genero,
                 "DIRETORIA": p.diretoria,
                 "GERENCIA": p.gerencia,
@@ -184,28 +194,29 @@ def gerar_dados(
                 "DESCRICAO_SECAO": f"{p.diretoria} - {p.gerencia}",
                 "FUNCAO": p.cargo,
                 "GESTOR": p.gestor,
-                "CODSITUACAO": "A",
+                "CODSITUACAO": situacao,
                 "CODTIPO": "N",
-                "DATAADMISSAO": p.admissao.strftime("%d/%m/%Y") if ultimo else p.admissao,
+                "DATAADMISSAO": p.admissao.strftime("%d/%m/%Y") if texto else p.admissao,
             }
-            for p in pessoas
+            for p, situacao in pessoas
         ]
-        df = pl.DataFrame(linhas)
-        if ultimo:
-            # uma data de nascimento inválida -> AVISO de falha de conversão
-            df = df.with_columns(
-                pl.col("DTNASCIMENTO")
-                .cast(pl.String)
-                .str.to_date("%Y-%m-%d")
-                .dt.strftime("%d/%m/%Y")
-            ).with_columns(
-                pl.when(pl.int_range(pl.len()) == 0)
-                .then(pl.lit("31/02/1990"))
-                .otherwise(pl.col("DTNASCIMENTO"))
-                .alias("DTNASCIMENTO")
-            )
-            df = df.rename({"DATAADMISSAO": "Data de Admissão", "NOME": " Nome ", "CHAPA": "Chapa"})
-        arquivos["quadro"].append(_gravar(df, pasta / "quadro" / f"quadro_{mes:%Y-%m}.xlsx"))
+
+    arquivos["quadro"] = []
+    anteriores = [linha for mes, pessoas in fotos[:-1] for linha in _linhas(mes, pessoas, False)]
+    if anteriores:
+        arquivos["quadro"].append(
+            _gravar(pl.DataFrame(anteriores), pasta / "quadro" / f"Quadro {ano}.xlsx")
+        )
+    mes, pessoas = fotos[-1]
+    df = pl.DataFrame(_linhas(mes, pessoas, True)).drop("COMPETENCIA")
+    # uma data de nascimento inválida -> AVISO de falha de conversão
+    df = df.with_columns(
+        pl.when(pl.int_range(pl.len()) == 0)
+        .then(pl.lit("31/02/1990"))
+        .otherwise(pl.col("DTNASCIMENTO"))
+        .alias("DTNASCIMENTO")
+    ).rename({"DATAADMISSAO": "Data de Admissão", "NOME": " Nome ", "CHAPA": "Chapa"})
+    arquivos["quadro"].append(_gravar(df, pasta / "quadro" / f"Quadro {mes:%m-%Y}.xlsx"))
 
     # ---- Admitidos: sem várias colunas (virão do quadro); alguns CC em branco
     adm = pl.DataFrame(
@@ -253,7 +264,7 @@ def gerar_dados(
     arquivos["terceiros"] = [_gravar(terc, pasta / "terceiros" / "terceiros.xlsx")]
 
     # ---- Orçado: 12 meses, uma linha por HC; um arquivo com uma aba por semestre
-    base_orc = fotos[0][1]
+    base_orc = [c for c, _ in fotos[0][1]]
     linhas_orc = []
     for m in range(1, 13):
         for k, p in enumerate(base_orc):

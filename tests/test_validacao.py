@@ -71,11 +71,34 @@ def test_periodos_orcado():
         {"periodo": pl.date_range(date(2026, 1, 1), date(2026, 12, 1), "1mo", eager=True)}
     )
     assert _sev(regras.periodos_orcado(ok)) == [Severidade.OK]
-    ruim = pl.DataFrame({"periodo": [date(2026, 1, 1), date(2026, 2, 15)]})
-    assert {r.regra for r in regras.periodos_orcado(ruim)} == {
-        "periodo_nao_inicio_mes",
-        "orcado_meses",
-    }
+    ruim = pl.DataFrame({"periodo": [date(2026, 1, 1), date(2026, 2, 1)]})
+    assert {r.regra for r in regras.periodos_orcado(ruim)} == {"orcado_meses"}
+
+
+def test_periodo_inicio_mes():
+    assert regras.periodo_inicio_mes(pl.DataFrame({"periodo": [date(2026, 5, 1)]}), "q") == []
+    (r,) = regras.periodo_inicio_mes(pl.DataFrame({"periodo": [date(2026, 5, 31)]}), "q")
+    assert r.severidade == Severidade.ERRO and r.regra == "periodo_nao_inicio_mes"
+
+
+def test_reconciliacao_desconsidera_situacoes_fora_do_hc():
+    # fev: 100 ativos + 2 demitidos no mês ainda na foto com situação "D"
+    q = pl.concat(
+        [
+            _quadro({date(2026, 1, 1): 100}).with_columns(pl.lit("A").alias("situacao")),
+            pl.DataFrame(
+                {
+                    "periodo": [date(2026, 2, 1)] * 102,
+                    "matricula": [str(i) for i in range(102)],
+                    "situacao": ["A"] * 100 + ["D"] * 2,
+                }
+            ),
+        ]
+    )
+    adm = pl.DataFrame({"periodo": [date(2026, 2, 1)] * 2, "matricula": ["x", "y"]})
+    dem = pl.DataFrame({"periodo": [date(2026, 2, 1)] * 2, "matricula": ["100", "101"]})
+    assert _sev(regras.reconciliacao_quadro(q, adm, dem, 0)) == [Severidade.AVISO]
+    assert _sev(regras.reconciliacao_quadro(q, adm, dem, 0, ["D"])) == [Severidade.OK]
 
 
 def test_variacao_volume():

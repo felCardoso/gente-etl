@@ -179,13 +179,18 @@ def reconciliacao_quadro(
     admitidos: pl.DataFrame | None,
     demitidos: pl.DataFrame | None,
     tolerancia: float,
+    situacoes_fora_hc: list[str] | None = None,
 ) -> list[Resultado]:
     """Quadro(t) ≈ Quadro(t-1) + Admitidos(t) − Demitidos(t), por período (mês).
 
     Só roda se o quadro tiver pelo menos dois períodos. Transferências internas não
-    alteram o total da companhia, por isso não entram na conta.
+    alteram o total da companhia, por isso não entram na conta. Linhas do quadro com
+    situação em ``situacoes_fora_hc`` (ex.: demitidos que ainda aparecem na foto do
+    mês) não contam como HC.
     """
     escopo = "consolidado"
+    if situacoes_fora_hc and "situacao" in quadro.columns:
+        quadro = quadro.filter(~pl.col("situacao").is_in(situacoes_fora_hc).fill_null(False))
     if "periodo" not in quadro.columns or quadro["periodo"].n_unique() < 2:
         return [
             Resultado(
@@ -230,13 +235,13 @@ def reconciliacao_quadro(
     return [ok("reconciliacao", escopo, f"Quadro reconciliado em {tabela.height} período(s)")]
 
 
-def periodos_orcado(df: pl.DataFrame, escopo: str = "orcado") -> list[Resultado]:
-    if "periodo" not in df.columns or df.height == 0:
+def periodo_inicio_mes(df: pl.DataFrame, escopo: str) -> list[Resultado]:
+    """O período é sempre o 1º dia do mês (base da CHAVE M)."""
+    if "periodo" not in df.columns or df.schema["periodo"] != pl.Date:
         return []
-    res: list[Resultado] = []
     nao_dia1 = df.filter(pl.col("periodo").dt.day() != 1)
     if nao_dia1.height:
-        res.append(
+        return [
             Resultado(
                 "periodo_nao_inicio_mes",
                 escopo,
@@ -245,7 +250,14 @@ def periodos_orcado(df: pl.DataFrame, escopo: str = "orcado") -> list[Resultado]
                 nao_dia1.height,
                 nao_dia1.head(50),
             )
-        )
+        ]
+    return []
+
+
+def periodos_orcado(df: pl.DataFrame, escopo: str = "orcado") -> list[Resultado]:
+    if "periodo" not in df.columns or df.height == 0:
+        return []
+    res: list[Resultado] = []
     meses = df.group_by(pl.col("periodo").dt.year().alias("ano")).agg(
         pl.col("periodo").n_unique().alias("meses")
     )
@@ -265,7 +277,7 @@ def periodos_orcado(df: pl.DataFrame, escopo: str = "orcado") -> list[Resultado]
             )
         )
     if not res:
-        res.append(ok("orcado_periodos", escopo, "Orçado com 12 meses por ano, sempre no dia 1"))
+        res.append(ok("orcado_periodos", escopo, "Orçado com 12 meses por ano"))
     return res
 
 

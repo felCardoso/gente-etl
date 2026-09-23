@@ -17,7 +17,10 @@ class Movimentacoes(Fluxo):
     colunas_data = ("data_movimentacao",)
 
     def transformar(self, lf: pl.LazyFrame) -> pl.LazyFrame:
-        lf = lf.with_columns(lp.inicio_mes(pl.col("data_movimentacao")).alias("periodo"))
+        # Período = mês do evento; CHAVE M liga à foto do quadro desse mesmo mês.
+        lf = lf.with_columns(lp.inicio_mes(pl.col("data_movimentacao")).alias("periodo")).pipe(
+            self.definir_chave_m
+        )
         lf = self.enriquecer_com_quadro(lf)
 
         # >>> PONTO DE MIGRAÇÃO: regras de movimentação (ex.: classificar tipo, de/para).

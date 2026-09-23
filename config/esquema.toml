@@ -22,7 +22,7 @@
 nome = "periodo"
 tipo = "data"
 aliases = ["COMPETENCIA", "MES_REFERENCIA", "DATA_REFERENCIA", "MES_ANO", "PERIODO"]
-descricao = "Primeiro dia do mês a que a linha se refere."
+descricao = "Sempre o 1º dia do mês a que a linha se refere (ERRO se não for)."
 
 [[coluna]]
 nome = "empresa"
@@ -38,7 +38,14 @@ aliases = ["CODFILIAL", "FILIAL", "COD_FILIAL"]
 nome = "matricula"
 tipo = "texto"
 aliases = ["CHAPA", "MATRICULA", "RE", "MATRICULA_RM"]
-descricao = "Chave do colaborador. Usada no enriquecimento pelo quadro."
+descricao = "Chave do colaborador (CHAPA do RM)."
+
+[[coluna]]
+nome = "chave_m"
+tipo = "texto"
+saida = "CHAVE M"
+aliases = ["CHAVE M", "CHAVE_M", "CHAVEM"]
+descricao = "Calculada: dd/MM/yyyy do período (dia 1) + '_' + matrícula. Liga admitidos, demitidos e movimentações à foto do quadro do mesmo mês."
 
 [[coluna]]
 nome = "nome"

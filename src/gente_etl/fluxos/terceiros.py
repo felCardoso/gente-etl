@@ -17,7 +17,7 @@ class Terceiros(Fluxo):
     colunas_data = ("data_admissao",)
 
     def transformar(self, lf: pl.LazyFrame) -> pl.LazyFrame:
-        lf = definir_periodo_foto(lf, self.ctx.mes_referencia)
+        lf = definir_periodo_foto(lf, self.ctx.mes_referencia)  # sem período: mês de referência
 
         # >>> PONTO DE MIGRAÇÃO: regras específicas de terceiros.
         if self.cfg.parametros.get("remover_duplicadas", False) and self.cfg.chave:

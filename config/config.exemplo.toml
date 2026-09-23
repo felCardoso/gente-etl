@@ -39,6 +39,8 @@ tolerancia_reconciliacao = 0.005        # 0,5% de diferença aceita em quadro(t-
 variacao_maxima_volume = 0.20           # avisa se linhas variarem mais de 20% vs. última execução
 cobertura_minima_enriquecimento = 0.95  # % mínimo de admitidos/demitidos achados no quadro
 linhas_amostra = 50                     # linhas por problema gravadas no relatório
+situacoes_fora_hc = ["D"]               # situações do quadro fora do HC na reconciliação
+                                        # (ex.: demitido que ainda aparece na foto do mês)
 
 # -------------------------------------------------------------------------------------
 # FLUXOS
@@ -48,15 +50,24 @@ linhas_amostra = 50                     # linhas por problema gravadas no relat�
 #   obrigatorias     colunas que não podem ficar vazias (ERRO)
 #   chave            combinação que deve ser única (ERRO se duplicar)
 #   rotulo           valor da coluna `base` (padrão: nome do fluxo em maiúsculas)
-#   [fluxos.X.enriquecer]  completa colunas vazias/ausentes com o quadro
+#   [fluxos.X.enriquecer]  completa colunas vazias/ausentes com o quadro. A chave padrão
+#                          é a CHAVE M (dd/MM/yyyy do período + "_" + matrícula), ou seja,
+#                          cada evento busca a foto do quadro do MESMO mês.
 #   [fluxos.X.parametros]  parâmetros livres usados pela lógica do fluxo
 # -------------------------------------------------------------------------------------
 
+# Quadro = foto do fechamento de cada mês. Na mesma pasta podem conviver arquivos de
+# um ano ("Quadro 2020"), de vários anos ("Quadro 2018-2019") e de um mês ("Quadro 05-2026").
+# Período: coluna de competência da planilha; sem ela, "MM-AAAA" do nome do arquivo.
 [fluxos.quadro]
 arquivos = ["%OneDriveCommercial%/Gente - Bases/Quadro/*.xlsx"]
 aba = 0
 chave = ["periodo", "matricula"]
-obrigatorias = ["matricula", "nome", "centro_custo", "data_admissao"]
+obrigatorias = ["periodo", "matricula", "nome", "centro_custo", "data_admissao"]
+
+[fluxos.quadro.parametros]
+sobreposicao = "mais_recente"      # mês em 2+ arquivos: usa o modificado por último ("erro" = bloqueia)
+periodo_padrao_referencia = false  # true = linha sem período recebe o mês de referência (--referencia)
 
 [fluxos.admitidos]
 arquivos = ["%OneDriveCommercial%/Gente - Bases/Admitidos/*.xlsx"]
@@ -65,7 +76,7 @@ obrigatorias = ["matricula", "data_admissao"]
 
 [fluxos.admitidos.enriquecer]
 ativo = true
-chave = ["matricula"]
+chave = ["chave_m"]
 ignorar = ["periodo", "tempo_empresa_meses"]
 
 [fluxos.demitidos]
@@ -75,7 +86,7 @@ obrigatorias = ["matricula", "data_demissao"]
 
 [fluxos.demitidos.enriquecer]
 ativo = true
-chave = ["matricula"]
+chave = ["chave_m"]
 ignorar = ["periodo", "tempo_empresa_meses"]
 
 [fluxos.movimentacoes]
@@ -84,7 +95,7 @@ obrigatorias = ["matricula", "data_movimentacao"]
 
 [fluxos.movimentacoes.enriquecer]
 ativo = true
-chave = ["matricula"]
+chave = ["chave_m"]
 ignorar = ["periodo", "tempo_empresa_meses"]
 
 [fluxos.terceiros]

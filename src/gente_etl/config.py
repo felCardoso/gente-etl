@@ -125,11 +125,15 @@ class ConfigValidacao(_Modelo):
     variacao_maxima_volume: float = Field(default=0.2, ge=0, description="Vs. última execução.")
     cobertura_minima_enriquecimento: float = Field(default=0.95, ge=0, le=1)
     linhas_amostra: int = Field(default=50, ge=1)
+    situacoes_fora_hc: list[str] = Field(
+        default_factory=list,
+        description="Situações do quadro que não contam como HC na reconciliação (ex.: 'D').",
+    )
 
 
 class ConfigEnriquecimento(_Modelo):
     ativo: bool = False
-    chave: list[str] = Field(default_factory=lambda: ["matricula"])
+    chave: list[str] = Field(default_factory=lambda: ["chave_m"])
     colunas: list[str] = Field(
         default_factory=list, description="Colunas a trazer do quadro. Vazio = todas em comum."
     )

@@ -17,10 +17,12 @@ class Admitidos(Fluxo):
     colunas_data = ("data_admissao",)
 
     def transformar(self, lf: pl.LazyFrame) -> pl.LazyFrame:
-        # Período do evento = mês da admissão.
-        lf = lf.with_columns(lp.inicio_mes(pl.col("data_admissao")).alias("periodo"))
+        # Período = mês do evento; CHAVE M liga à foto do quadro desse mesmo mês.
+        lf = lf.with_columns(lp.inicio_mes(pl.col("data_admissao")).alias("periodo")).pipe(
+            self.definir_chave_m
+        )
 
-        # Completa colunas ausentes/vazias com o quadro (merge).
+        # Completa colunas ausentes/vazias com o quadro do mês (merge pela CHAVE M).
         lf = self.enriquecer_com_quadro(lf)
 
         # >>> PONTO DE MIGRAÇÃO: colunas calculadas / filtros específicos de admitidos.

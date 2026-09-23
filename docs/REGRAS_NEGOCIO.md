@@ -17,35 +17,40 @@
 | Termo | Definição | Status |
 |---|---|---|
 | HC (headcount) | _Ex.: colaboradores com vínculo ativo no último dia do período. Afastados contam? Aprendizes/estagiários contam?_ | ❓ |
-| Período | Primeiro dia do mês de referência da linha (`periodo`). | ✅ |
-| Data de referência da foto | _Em que dia o RM é extraído? O quadro de "agosto" é a foto de 31/08 ou da data de extração?_ | ❓ |
+| Período | **Sempre o 1º dia do mês** (`periodo`). Período fora do dia 1 é ERRO (não é corrigido). | ✅ |
+| CHAVE M | `dd/MM/yyyy` do período + `_` + matrícula (ex.: `01/05/2026_000123`). Liga admitidos, demitidos e movimentações à **foto do quadro do mesmo mês**. Coluna de saída `CHAVE M`. | ✅ |
+| Foto do quadro | Fechamento de cada mês. | ✅ |
 | Matrícula (`matricula`) | Chave do colaborador no RM (CHAPA). _É única entre coligadas ou a chave é coligada + chapa?_ | ❓ |
 | Turnover | _Fórmula usada nos BIs (fica no modelo semântico, mas vale registrar)._ | ❓ |
 
 ## 1. Quadro
 
 - **Origem:** _relatório/consulta do RM, quem extrai, onde é salvo, com que frequência._
-- **Granularidade:** 1 linha por colaborador por período.
+- **Granularidade:** 1 linha por colaborador por período (foto do fechamento do mês).
 - **Chave:** `periodo` + `matricula`.
+- **Arquivos:** podem conviver na mesma pasta arquivos empilhados de um ano
+  (`Quadro 2020`), de vários anos (`Quadro 2018-2019`) ou de um mês (`Quadro 05-2026`).
 
 | # | Regra | Onde (código) | Status |
 |---|---|---|---|
-| Q1 | `periodo` vem da coluna da planilha; sem ela, usa o mês de referência da execução | `fluxos/quadro.py: definir_periodo_foto` | 🚧 |
-| Q2 | `tempo_empresa_meses` = meses completos entre admissão e fim do período | `fluxos/quadro.py` | 🚧 |
-| Q3 | _Ex.: situações que saem do HC (afastado INSS, licença...)_ | | ❓ |
-| Q4 | _Ex.: de-para de centro de custo para diretoria/gerência_ | | ❓ |
+| Q1 | `periodo` vem da coluna de competência; sem ela, de `MM-AAAA` no nome do arquivo; sem os dois, fica vazio (ERRO) | `fluxos/quadro.py: definir_periodo_foto` | ✅ |
+| Q2 | Mês presente em mais de um arquivo: vale o arquivo **modificado por último** (AVISO lista os casos). `sobreposicao = "erro"` bloqueia em vez de escolher | `fluxos/quadro.py` | 🚧 |
+| Q3 | `chave_m` = CHAVE M do período e matrícula | `fluxos/quadro.py` | ✅ |
+| Q4 | `tempo_empresa_meses` = meses completos entre admissão e fim do período | `fluxos/quadro.py` | 🚧 |
+| Q5 | Situações fora do HC na reconciliação (padrão `D`: demitido que ainda aparece na foto do mês). _Afastados contam?_ | `config.toml: situacoes_fora_hc` | ❓ |
+| Q6 | _Ex.: de-para de centro de custo para diretoria/gerência_ | | ❓ |
 
 ## 2. Admitidos
 
 - **Granularidade:** 1 linha por admissão.
 - **Chave:** `matricula` + `data_admissao`.
-- **Enriquecimento:** colunas ausentes ou vazias são completadas com o **registro mais
-  recente do quadro** da mesma matrícula (o valor da própria base tem prioridade).
+- **Enriquecimento:** colunas ausentes ou vazias são completadas com a **foto do quadro do
+  mês da admissão**, pela CHAVE M (o valor da própria base tem prioridade).
 
 | # | Regra | Onde | Status |
 |---|---|---|---|
 | A1 | `periodo` = mês da `data_admissao` | `fluxos/admitidos.py` | 🚧 |
-| A2 | Completa com o quadro (exceto `periodo` e `tempo_empresa_meses`) | `config.toml: [fluxos.admitidos.enriquecer]` | 🚧 |
+| A2 | Completa com o quadro pela CHAVE M (exceto `periodo` e `tempo_empresa_meses`) | `config.toml: [fluxos.admitidos.enriquecer]` | ✅ |
 | A3 | _Readmissão: mesma matrícula volta? Conta como admissão?_ | | ❓ |
 | A4 | _Transferência entre coligadas conta como admissão?_ | | ❓ |
 
@@ -53,8 +58,9 @@
 
 - **Granularidade:** 1 linha por desligamento.
 - **Chave:** `matricula` + `data_demissao`.
-- **Enriquecimento:** igual a admitidos. _Confirmar: o demitido ainda aparece no quadro
-  do mês anterior? Se o quadro só tiver ativos, a cobertura do enriquecimento cai._
+- **Enriquecimento:** pela CHAVE M do mês da demissão. Pressupõe que o demitido **aparece
+  na foto do fechamento do mês em que saiu** (ex.: situação `D`). _Confirmar; se não
+  aparecer, a validação `cobertura_quadro` acusa._
 
 | # | Regra | Onde | Status |
 |---|---|---|---|
@@ -69,7 +75,7 @@
 
 | # | Regra | Onde | Status |
 |---|---|---|---|
-| M1 | `periodo` = mês da `data_movimentacao` | `fluxos/movimentacoes.py` | 🚧 |
+| M1 | `periodo` = mês da `data_movimentacao`; enriquecimento pela CHAVE M | `fluxos/movimentacoes.py` | 🚧 |
 | M2 | _Quais tipos de movimentação entram (promoção, transferência, mérito...)?_ | | ❓ |
 
 ## 5. Terceiros
@@ -88,7 +94,7 @@
 
 | # | Regra | Onde | Status |
 |---|---|---|---|
-| O1 | `periodo` precisa ser dia 1 (ERRO se não for) | `validacao/regras.py: periodos_orcado` | ✅ |
+| O1 | `periodo` precisa ser dia 1 (ERRO se não for; vale para todas as bases) | `validacao/regras.py: periodo_inicio_mes` | ✅ |
 | O2 | Cada ano deve ter 12 meses (AVISO) | idem | ✅ |
 | O3 | _Revisão semestral substitui o ano todo ou só o 2º semestre?_ | | ❓ |
 
@@ -108,12 +114,13 @@
 | `falha_conversao` | AVISO | valor preenchido que não virou data/número |
 | `data_implausivel` | AVISO | datas antes de 1950 ou mais de 400 dias após a referência |
 | `cobertura_quadro` | AVISO | % de linhas encontradas no quadro abaixo do mínimo |
-| `reconciliacao` | AVISO | quadro(t) ≠ quadro(t−1) + admitidos(t) − demitidos(t) |
-| `periodo_nao_inicio_mes` | ERRO | orçado com período fora do dia 1 |
+| `reconciliacao` | AVISO | quadro(t) ≠ quadro(t−1) + admitidos(t) − demitidos(t), sem as `situacoes_fora_hc` |
+| `periodo_nao_inicio_mes` | ERRO | período fora do dia 1 (qualquer base) |
+| `periodo_em_varios_arquivos` | AVISO | mesmo mês do quadro em 2+ arquivos (usado o mais recente) |
 | `orcado_meses` | AVISO | ano do orçado sem 12 meses |
 | `variacao_volume` | AVISO | linhas por base variaram além do limite vs. última execução |
 | `coluna_fora_esquema` | AVISO | fluxo criou coluna que não está no esquema |
 | `contrato_saida` | ERRO | base final diferente do esquema |
 
-_Reconciliação: confirmar a convenção de datas (item 0). Se a foto do quadro é tirada
-antes do fim do mês, admitidos e demitidos do fim do mês podem cair no período seguinte._
+_Reconciliação: como a foto é do fechamento do mês e inclui os demitidos do mês, eles
+são tirados da contagem de HC pela situação (`situacoes_fora_hc`)._

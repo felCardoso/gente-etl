@@ -91,8 +91,14 @@ class Fluxo(ABC):
         """Regras de negócio do fluxo. Sobrescreva nas subclasses."""
         return lf
 
+    @staticmethod
+    def definir_chave_m(lf: pl.LazyFrame) -> pl.LazyFrame:
+        """Cria ``chave_m`` (``dd/MM/yyyy_matricula``) a partir de ``periodo`` e ``matricula``."""
+        return lf.with_columns(lp.chave_m(pl.col("periodo"), pl.col("matricula")).alias("chave_m"))
+
     def enriquecer_com_quadro(self, lf: pl.LazyFrame) -> pl.LazyFrame:
-        """Completa colunas vazias/ausentes com o registro mais recente do quadro."""
+        """Completa colunas vazias/ausentes com o quadro (padrão: pela CHAVE M, ou seja,
+        a foto do quadro do mesmo mês do evento)."""
         e = self.cfg.enriquecer
         quadro = self.ctx.resultados.get("quadro")
         if not e.ativo or quadro is None:
@@ -111,6 +117,7 @@ class Fluxo(ABC):
         res = regras.sem_linhas(df, self.nome)
         res += regras.colunas_obrigatorias(df, self.cfg.obrigatorias, self.nome, v.linhas_amostra)
         res += regras.chave_unica(df, self.cfg.chave, self.nome, v.linhas_amostra)
+        res += regras.periodo_inicio_mes(df, self.nome)
         res += regras.datas_plausiveis(
             df, list(self.colunas_data), self.nome, self.ctx.referencia, n_amostra=v.linhas_amostra
         )

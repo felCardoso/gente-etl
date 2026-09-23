@@ -71,4 +71,4 @@ def test_empilha_arquivos_com_cabecalhos_diferentes_via_preparar(tmp_path, esque
         preparar=lambda d: renomear_por_aliases(d, esquema),
     ).collect()
     assert sorted(df["matricula"].to_list()) == ["1", "2"]
-    assert set(df.columns) == {"matricula", "nome", "_arquivo", "_aba"}
+    assert set(df.columns) == {"matricula", "nome", "_arquivo", "_aba", "_ordem_arquivo"}

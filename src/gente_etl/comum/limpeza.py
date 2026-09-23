@@ -229,6 +229,26 @@ def inicio_mes(expr: pl.Expr) -> pl.Expr:
     return expr.dt.month_start()
 
 
+def chave_m(periodo: pl.Expr, matricula: pl.Expr) -> pl.Expr:
+    """CHAVE M = ``dd/MM/yyyy_matricula`` do período (sempre dia 1). Ex.: ``01/05/2026_000123``.
+
+    Liga cada linha à foto do quadro do mesmo mês. M: ``Date.ToText([periodo], "dd/MM/yyyy")
+    & "_" & [matricula]``.
+    """
+    return pl.concat_str([periodo.dt.strftime("%d/%m/%Y"), matricula], separator="_")
+
+
+def periodo_do_nome_arquivo(arquivo: pl.Expr) -> pl.Expr:
+    """Extrai ``MM-AAAA`` do nome do arquivo ("Quadro 05-2026.xlsx" -> 01/05/2026).
+
+    Nomes de ano ("Quadro 2020") ou de faixa ("Quadro 2018-2019") não casam e dão nulo.
+    """
+    partes = arquivo.str.extract_groups(r"(?:^|\D)(?<mes>\d{2})-(?<ano>\d{4})(?:\D|$)")
+    mes = partes.struct.field("mes").cast(pl.Int32, strict=False)
+    ano = partes.struct.field("ano").cast(pl.Int32, strict=False)
+    return pl.when(mes.is_between(1, 12)).then(pl.date(ano, mes.clip(1, 12), 1)).otherwise(None)
+
+
 def meses_entre(inicio: pl.Expr, fim: pl.Expr) -> pl.Expr:
     """Meses completos entre duas datas (equivalente a DATEDIF 'M')."""
     meses = (fim.dt.year() - inicio.dt.year()) * 12 + (fim.dt.month() - inicio.dt.month())

@@ -27,6 +27,7 @@ from gente_etl.config import ConfigFluxo, expandir_caminho
 VERSAO_LEITOR = "1"
 COLUNA_ARQUIVO = "_arquivo"
 COLUNA_ABA = "_aba"
+COLUNA_ORDEM = "_ordem_arquivo"  # mtime + nome: maior = arquivo mais recente
 
 
 class ErroLeitura(Exception):
@@ -128,7 +129,7 @@ def ler_fonte(
 
     ``preparar`` é aplicado a cada arquivo ANTES de empilhar (ex.: renomear pelos
     aliases), para que "CHAPA" num arquivo e "Chapa" no outro virem a mesma coluna.
-    Adiciona ``_arquivo`` e ``_aba`` para rastreabilidade (removidas na gravação).
+    Adiciona ``_arquivo``, ``_aba`` e ``_ordem_arquivo`` (removidas na gravação).
     """
     planilhas = planilhas_da_fonte(fonte, base)
     if not planilhas:
@@ -155,6 +156,9 @@ def ler_fonte(
         (preparar(r.df) if preparar else r.df).with_columns(
             pl.lit(r.planilha.arquivo.name).alias(COLUNA_ARQUIVO),
             pl.lit(str(r.planilha.aba)).alias(COLUNA_ABA),
+            pl.lit(f"{r.planilha.arquivo.stat().st_mtime_ns:020d}|{r.planilha.arquivo.name}").alias(
+                COLUNA_ORDEM
+            ),
         )
         for r in resultados
     ]
