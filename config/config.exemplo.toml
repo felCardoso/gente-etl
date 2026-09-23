@@ -1,0 +1,103 @@
+# =====================================================================================
+# CONFIGURAÇÃO LOCAL DO gente-etl
+# =====================================================================================
+# Este arquivo é SEU (não vai para o git). Crie com:  gente-etl config iniciar
+# Confira com:                                       gente-etl config verificar
+#
+# Caminhos:
+#   • Use barras normais (C:/Users/...) ou aspas simples ('C:\Users\...').
+#   • Variáveis de ambiente funcionam: %OneDriveCommercial%, %USERPROFILE%, ${HOME}.
+#   • Caminhos relativos partem da pasta deste arquivo.
+#   • Padrões glob: *.xlsx (todos da pasta), **/*.xlsx (inclui subpastas).
+#
+# As planilhas vêm do SharePoint sincronizado pelo OneDrive ("Adicionar atalho a
+# Meus arquivos" ou "Sincronizar"). A pasta de saída também deve ficar no SharePoint,
+# que é de onde o dataflow do Fabric lê a base pronta.
+# =====================================================================================
+
+esquema = "esquema.toml"
+
+[geral]
+pasta_saida = "%OneDriveCommercial%/Gente - Bases/Saida"
+pasta_cache = "../.cache"            # cache local de leitura dos XLSX (pode apagar)
+# pasta_relatorios = "../relatorios" # padrão: <pasta_saida>/relatorios
+nome_base = "base_gente"             # gera base_gente.parquet e base_gente.csv
+formatos = ["parquet", "csv"]
+gravar_por_fluxo = false             # true = também base_gente_quadro.parquet etc.
+coluna_base = "base"                 # coluna que diz de qual fluxo veio a linha
+leitura_paralela = 4                 # arquivos lidos ao mesmo tempo
+
+[csv]
+separador = ";"
+decimal_virgula = true
+bom = true
+formato_data = "%Y-%m-%d"
+
+[validacao]
+bloquear_em_erro = true                 # ERRO impede a gravação (use --forcar para ignorar)
+tolerancia_reconciliacao = 0.005        # 0,5% de diferença aceita em quadro(t-1)+adm-dem
+variacao_maxima_volume = 0.20           # avisa se linhas variarem mais de 20% vs. última execução
+cobertura_minima_enriquecimento = 0.95  # % mínimo de admitidos/demitidos achados no quadro
+linhas_amostra = 50                     # linhas por problema gravadas no relatório
+
+# -------------------------------------------------------------------------------------
+# FLUXOS
+#   arquivos         lista de caminhos/padrões
+#   aba              nome da aba, índice (0 = primeira) ou "*" (todas as abas)
+#   linha_cabecalho  linha do cabeçalho (0 = primeira)
+#   obrigatorias     colunas que não podem ficar vazias (ERRO)
+#   chave            combinação que deve ser única (ERRO se duplicar)
+#   rotulo           valor da coluna `base` (padrão: nome do fluxo em maiúsculas)
+#   [fluxos.X.enriquecer]  completa colunas vazias/ausentes com o quadro
+#   [fluxos.X.parametros]  parâmetros livres usados pela lógica do fluxo
+# -------------------------------------------------------------------------------------
+
+[fluxos.quadro]
+arquivos = ["%OneDriveCommercial%/Gente - Bases/Quadro/*.xlsx"]
+aba = 0
+chave = ["periodo", "matricula"]
+obrigatorias = ["matricula", "nome", "centro_custo", "data_admissao"]
+
+[fluxos.admitidos]
+arquivos = ["%OneDriveCommercial%/Gente - Bases/Admitidos/*.xlsx"]
+chave = ["matricula", "data_admissao"]
+obrigatorias = ["matricula", "data_admissao"]
+
+[fluxos.admitidos.enriquecer]
+ativo = true
+chave = ["matricula"]
+ignorar = ["periodo", "tempo_empresa_meses"]
+
+[fluxos.demitidos]
+arquivos = ["%OneDriveCommercial%/Gente - Bases/Demitidos/*.xlsx"]
+chave = ["matricula", "data_demissao"]
+obrigatorias = ["matricula", "data_demissao"]
+
+[fluxos.demitidos.enriquecer]
+ativo = true
+chave = ["matricula"]
+ignorar = ["periodo", "tempo_empresa_meses"]
+
+[fluxos.movimentacoes]
+arquivos = ["%OneDriveCommercial%/Gente - Bases/Movimentacoes/*.xlsx"]
+obrigatorias = ["matricula", "data_movimentacao"]
+
+[fluxos.movimentacoes.enriquecer]
+ativo = true
+chave = ["matricula"]
+ignorar = ["periodo", "tempo_empresa_meses"]
+
+[fluxos.terceiros]
+arquivos = ["%OneDriveCommercial%/Gente - Bases/Terceiros/*.xlsx"]
+chave = ["periodo", "cpf"]
+obrigatorias = ["cpf", "nome", "fornecedor"]
+
+[fluxos.orcado]
+arquivos = ["%OneDriveCommercial%/Gente - Bases/Orcado/*.xlsx"]
+aba = "*"
+chave = ["periodo", "id_vaga"]
+obrigatorias = ["periodo", "centro_custo"]
+rotulo = "ORCADO"
+
+[fluxos.orcado.parametros]
+normalizar_periodo = false   # true = força o período para o dia 1 em vez de acusar erro

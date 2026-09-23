@@ -1,0 +1,162 @@
+# =====================================================================================
+# ESQUEMA DA BASE CONSOLIDADA  (contrato com os modelos semânticos)
+# =====================================================================================
+# A ORDEM das colunas aqui é a ordem na base final (CSV/Parquet).
+#
+#   nome            nome interno, usado no código Python (snake_case, não mude à toa)
+#   saida           nome na base final. Ajuste para ficar IGUAL ao que os modelos
+#                   semânticos esperam hoje. Se omitido, usa `nome`.
+#   tipo            texto | inteiro | decimal | data | booleano
+#   aliases         cabeçalhos aceitos nas planilhas de origem. A comparação ignora
+#                   maiúsculas, acentos, espaços e pontuação
+#                   ("Data de Admissão" == "DATA_DE_ADMISSAO" == "data de admissao").
+#   zeros_esquerda  completa com zeros à esquerda (ex.: CPF = 11)
+#   maiusculas      converte o texto para MAIÚSCULAS
+#
+# Descubra os cabeçalhos reais com:  gente-etl inspecionar "caminho/arquivo.xlsx"
+# Antes de adicionar uma coluna aqui, confira na documentação qual fluxo a preenche.
+# =====================================================================================
+
+# ---------------------------------------------------------------- identificação / tempo
+[[coluna]]
+nome = "periodo"
+tipo = "data"
+aliases = ["COMPETENCIA", "MES_REFERENCIA", "DATA_REFERENCIA", "MES_ANO", "PERIODO"]
+descricao = "Primeiro dia do mês a que a linha se refere."
+
+[[coluna]]
+nome = "empresa"
+tipo = "texto"
+aliases = ["CODCOLIGADA", "COLIGADA", "EMPRESA", "COD_EMPRESA"]
+
+[[coluna]]
+nome = "filial"
+tipo = "texto"
+aliases = ["CODFILIAL", "FILIAL", "COD_FILIAL"]
+
+[[coluna]]
+nome = "matricula"
+tipo = "texto"
+aliases = ["CHAPA", "MATRICULA", "RE", "MATRICULA_RM"]
+descricao = "Chave do colaborador. Usada no enriquecimento pelo quadro."
+
+[[coluna]]
+nome = "nome"
+tipo = "texto"
+aliases = ["NOME", "NOME_COLABORADOR", "NOME_FUNCIONARIO", "COLABORADOR"]
+
+[[coluna]]
+nome = "cpf"
+tipo = "texto"
+zeros_esquerda = 11
+aliases = ["CPF", "NUM_CPF"]
+
+[[coluna]]
+nome = "data_nascimento"
+tipo = "data"
+aliases = ["DTNASCIMENTO", "DATA_NASCIMENTO", "DATA_DE_NASCIMENTO", "NASCIMENTO"]
+
+[[coluna]]
+nome = "genero"
+tipo = "texto"
+aliases = ["SEXO", "GENERO"]
+
+# ---------------------------------------------------------------- estrutura
+[[coluna]]
+nome = "diretoria"
+tipo = "texto"
+aliases = ["DIRETORIA", "NOME_DIRETORIA"]
+
+[[coluna]]
+nome = "gerencia"
+tipo = "texto"
+aliases = ["GERENCIA", "AREA", "NOME_GERENCIA"]
+
+[[coluna]]
+nome = "centro_custo"
+tipo = "texto"
+aliases = ["CODSECAO", "SECAO", "CENTRO_CUSTO", "CENTRO_DE_CUSTO", "CC", "CC_PARA", "SECAO_NOVA"]
+
+[[coluna]]
+nome = "descricao_centro_custo"
+tipo = "texto"
+aliases = ["DESCRICAO_SECAO", "DESC_SECAO", "DESCRICAO_CENTRO_CUSTO", "NOME_CC", "DESCRICAO_CC"]
+
+[[coluna]]
+nome = "cargo"
+tipo = "texto"
+aliases = ["FUNCAO", "CARGO", "NOME_FUNCAO", "DESC_FUNCAO", "FUNCAO_NOVA", "CARGO_NOVO"]
+
+[[coluna]]
+nome = "gestor"
+tipo = "texto"
+aliases = ["GESTOR", "NOME_GESTOR", "LIDER", "GESTOR_IMEDIATO"]
+
+[[coluna]]
+nome = "situacao"
+tipo = "texto"
+aliases = ["CODSITUACAO", "SITUACAO", "STATUS"]
+
+[[coluna]]
+nome = "tipo_contrato"
+tipo = "texto"
+aliases = ["CODTIPO", "TIPO_CONTRATO", "VINCULO", "TIPO_FUNCIONARIO"]
+
+# ---------------------------------------------------------------- eventos
+[[coluna]]
+nome = "data_admissao"
+tipo = "data"
+aliases = ["DATAADMISSAO", "DATA_ADMISSAO", "DT_ADMISSAO", "ADMISSAO", "DATA_DE_ADMISSAO"]
+
+[[coluna]]
+nome = "data_demissao"
+tipo = "data"
+aliases = ["DATADEMISSAO", "DATA_DEMISSAO", "DT_DEMISSAO", "DATA_DESLIGAMENTO", "DESLIGAMENTO"]
+
+[[coluna]]
+nome = "tipo_demissao"
+tipo = "texto"
+aliases = ["TIPODEMISSAO", "TIPO_DEMISSAO", "TIPO_DESLIGAMENTO"]
+
+[[coluna]]
+nome = "motivo_demissao"
+tipo = "texto"
+aliases = ["MOTIVODEMISSAO", "MOTIVO_DEMISSAO", "MOTIVO_DESLIGAMENTO", "MOTIVO"]
+
+[[coluna]]
+nome = "data_movimentacao"
+tipo = "data"
+aliases = ["DATA_MOVIMENTACAO", "DT_MOVIMENTACAO", "DATA_ALTERACAO", "DATA_MUDANCA"]
+
+[[coluna]]
+nome = "tipo_movimentacao"
+tipo = "texto"
+aliases = ["TIPO_MOVIMENTACAO", "MOTIVO_MUDANCA", "TIPO_ALTERACAO"]
+
+[[coluna]]
+nome = "centro_custo_anterior"
+tipo = "texto"
+aliases = ["SECAO_ANTERIOR", "CENTRO_CUSTO_ANTERIOR", "CC_ANTERIOR", "CC_DE"]
+
+[[coluna]]
+nome = "cargo_anterior"
+tipo = "texto"
+aliases = ["FUNCAO_ANTERIOR", "CARGO_ANTERIOR"]
+
+# ---------------------------------------------------------------- terceiros / orçado
+[[coluna]]
+nome = "fornecedor"
+tipo = "texto"
+aliases = ["FORNECEDOR", "EMPRESA_TERCEIRA", "PRESTADORA"]
+
+[[coluna]]
+nome = "id_vaga"
+tipo = "texto"
+aliases = ["ID_VAGA", "VAGA", "POSICAO", "CODIGO_VAGA"]
+descricao = "Identificador da posição orçada."
+
+# ---------------------------------------------------------------- calculadas
+[[coluna]]
+nome = "tempo_empresa_meses"
+tipo = "inteiro"
+descricao = "Calculada: quadro = até o fim do período; demitidos = até a demissão."
