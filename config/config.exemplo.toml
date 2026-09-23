@@ -39,8 +39,8 @@ tolerancia_reconciliacao = 0.005        # 0,5% de diferença aceita em quadro(t-
 variacao_maxima_volume = 0.20           # avisa se linhas variarem mais de 20% vs. última execução
 cobertura_minima_enriquecimento = 0.95  # % mínimo de admitidos/demitidos achados no quadro
 linhas_amostra = 50                     # linhas por problema gravadas no relatório
-situacoes_fora_hc = ["D"]               # situações do quadro fora do HC na reconciliação
-                                        # (ex.: demitido que ainda aparece na foto do mês)
+situacoes_fora_hc = []                  # situações do quadro que não contam como HC na
+                                        # reconciliação (ex.: ["AFASTADO"]); demitidos já saem do quadro
 
 # -------------------------------------------------------------------------------------
 # FLUXOS
@@ -50,9 +50,11 @@ situacoes_fora_hc = ["D"]               # situações do quadro fora do HC na re
 #   obrigatorias     colunas que não podem ficar vazias (ERRO)
 #   chave            combinação que deve ser única (ERRO se duplicar)
 #   rotulo           valor da coluna `base` (padrão: nome do fluxo em maiúsculas)
-#   [fluxos.X.enriquecer]  completa colunas vazias/ausentes com o quadro. A chave padrão
-#                          é a CHAVE M (dd/MM/yyyy do período + "_" + matrícula), ou seja,
-#                          cada evento busca a foto do quadro do MESMO mês.
+#   [fluxos.X.enriquecer]  completa colunas vazias/ausentes com o quadro.
+#                          chave         coluna(s) do fluxo usadas no merge
+#                          chave_quadro  coluna(s) correspondentes no quadro (vazio = iguais)
+#                          CHAVE M   = dd/MM/yyyy do período + "_" + matrícula (mesmo mês)
+#                          CHAVE M-1 = CHAVE M do mês anterior (demitidos: já saíram do quadro)
 #   [fluxos.X.parametros]  parâmetros livres usados pela lógica do fluxo
 # -------------------------------------------------------------------------------------
 
@@ -81,12 +83,15 @@ ignorar = ["periodo", "tempo_empresa_meses"]
 
 [fluxos.demitidos]
 arquivos = ["%OneDriveCommercial%/Gente - Bases/Demitidos/*.xlsx"]
+rotulo = "Demitidos"
 chave = ["matricula", "data_demissao"]
 obrigatorias = ["matricula", "data_demissao"]
 
+# O demitido sai do quadro no mês da demissão: busca a foto do mês ANTERIOR.
 [fluxos.demitidos.enriquecer]
 ativo = true
-chave = ["chave_m"]
+chave = ["chave_m_1"]
+chave_quadro = ["chave_m"]
 ignorar = ["periodo", "tempo_empresa_meses"]
 
 [fluxos.movimentacoes]

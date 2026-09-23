@@ -158,3 +158,30 @@ def test_chave_m():
 def test_periodo_do_nome_arquivo(arquivo, esperado):
     df = pl.DataFrame({"a": [arquivo]})
     assert df.select(lp.periodo_do_nome_arquivo(pl.col("a"))).item() == esperado
+
+
+def test_chave_m_anterior_vira_o_ano():
+    df = pl.DataFrame({"p": [date(2026, 1, 1), date(2026, 5, 1)], "m": ["7", "7"]})
+    r = df.select(lp.chave_m_anterior(pl.col("p"), pl.col("m"))).to_series().to_list()
+    assert r == ["01/12/2025_7", "01/04/2026_7"]
+
+
+def test_completar_com_referencia_chaves_com_nomes_diferentes():
+    """Demitido (chave_m_1) casa com a foto do mês anterior no quadro (chave_m)."""
+    quadro = pl.LazyFrame(
+        {
+            "chave_m": ["01/04/2026_1", "01/05/2026_2"],
+            "nome": ["Ana", "Bia"],
+            "periodo": [date(2026, 4, 1), date(2026, 5, 1)],
+        }
+    )
+    dem = pl.LazyFrame(
+        {"chave_m": ["01/05/2026_1"], "chave_m_1": ["01/04/2026_1"], "nome": [None]},
+        schema_overrides={"nome": pl.String},
+    )
+    r = lp.completar_com_referencia(
+        dem, quadro, chave=["chave_m_1"], chave_referencia=["chave_m"], ignorar=["periodo"]
+    ).collect()
+    assert r["nome"].to_list() == ["Ana"]
+    assert r["chave_m"].to_list() == ["01/05/2026_1"]  # a chave própria não é sobrescrita
+    assert r["_encontrado_referencia"].to_list() == [True]

@@ -130,7 +130,7 @@ def gerar_dados(
         ativos[c.chapa] = c
         seq += 1
 
-    # foto do fechamento: (mês, [(colaborador, situação)]); demitidos do mês aparecem com "D"
+    # foto do fechamento: (mês, [(colaborador, situação)]); demitido sai da foto no mês da saída
     fotos: list[tuple[date, list[tuple[Colaborador, str]]]] = []
     admitidos: list[tuple[Colaborador, date]] = []
     demitidos: list[tuple[Colaborador, date, str]] = []
@@ -138,13 +138,10 @@ def gerar_dados(
 
     for i in range(meses):
         mes = _mes(ano, mes_inicial + i)
-        saidas_mes: list[Colaborador] = []
         if i > 0:
             saem = rng.sample(sorted(ativos), k=max(1, len(ativos) // 40))
             for chapa in saem:
-                c = ativos.pop(chapa)
-                saidas_mes.append(c)
-                demitidos.append((c, _dia(rng, mes), rng.choice(TIPOS_DEMISSAO)))
+                demitidos.append((ativos.pop(chapa), _dia(rng, mes), rng.choice(TIPOS_DEMISSAO)))
             for _ in range(max(1, colaboradores // 30)):
                 c = _novo(rng, seq, _dia(rng, mes))
                 ativos[c.chapa] = c
@@ -169,8 +166,7 @@ def gerar_dados(
         fotos.append(
             (
                 mes,
-                [(Colaborador(**vars(c)), "A") for c in ativos.values()]
-                + [(Colaborador(**vars(c)), "D") for c in saidas_mes],
+                [(Colaborador(**vars(c)), "A") for c in ativos.values()],
             )
         )
 

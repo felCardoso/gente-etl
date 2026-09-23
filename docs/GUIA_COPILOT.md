@@ -35,8 +35,11 @@
 - Volume: **mais de 2,5 milhões de linhas** somando as bases. Performance é prioridade.
 - Dados pessoais (CPF, nome etc.): **LGPD**. Nenhum dado real vai para o git.
 - **`periodo` é sempre o 1º dia do mês.** A **CHAVE M** (`dd/MM/yyyy_matricula`, ex.
-  `01/05/2026_000123`) liga admitidos, demitidos e movimentações à foto do quadro **do
-  mesmo mês**. É a chave do enriquecimento (`lp.chave_m`, coluna `chave_m`/`CHAVE M`).
+  `01/05/2026_000123`) liga admitidos e movimentações à foto do quadro **do mesmo mês**
+  (`lp.chave_m`, coluna `chave_m`/`CHAVE M`).
+- **Demitidos saem do quadro** no mês da demissão: o merge deles usa a **CHAVE M-1**,
+  a foto do **mês anterior** (`lp.chave_m_anterior`, coluna `chave_m_1`/`CHAVE M-1`,
+  `enriquecer.chave_quadro = ["chave_m"]`). Na base final, `base` = `Demitidos`.
 - Os arquivos do quadro podem ser de um ano (`Quadro 2020`), de vários anos
   (`Quadro 2018-2019`) ou de um mês (`Quadro 05-2026`). O período vem da coluna de
   competência ou do nome do arquivo; mês repetido entre arquivos usa o mais recente.
@@ -103,6 +106,7 @@ volume) e grava CSV e Parquet.
    | `converter_tipos` | aplica os tipos do esquema | `Table.TransformColumnTypes` |
    | `inicio_mes` | 1º dia do mês | `Date.StartOfMonth` |
    | `chave_m` | CHAVE M `dd/MM/yyyy_matricula` | `Date.ToText(..., "dd/MM/yyyy") & "_" & ...` |
+   | `chave_m_anterior` | CHAVE M-1 (mês anterior) | `Date.AddMonths([periodo], -1)` + CHAVE M |
    | `periodo_do_nome_arquivo` | `MM-AAAA` do nome do arquivo | `Text.BetweenDelimiters` no `Source.Name` |
    | `meses_entre` | meses completos entre datas | `DATEDIF(...,"M")` |
    | `ultimo_por_chave` | registro mais recente por chave | `Table.Sort` + `Table.Distinct` |

@@ -134,6 +134,10 @@ class ConfigValidacao(_Modelo):
 class ConfigEnriquecimento(_Modelo):
     ativo: bool = False
     chave: list[str] = Field(default_factory=lambda: ["chave_m"])
+    chave_quadro: list[str] = Field(
+        default_factory=list,
+        description="Coluna(s) do quadro que casam com `chave`, na mesma ordem. Vazio = iguais.",
+    )
     colunas: list[str] = Field(
         default_factory=list, description="Colunas a trazer do quadro. Vazio = todas em comum."
     )
@@ -256,6 +260,7 @@ def _checar_colunas_referenciadas(cfg: Config, caminho: Path) -> None:
             "obrigatorias": f.obrigatorias,
             "chave": f.chave,
             "enriquecer.chave": f.enriquecer.chave,
+            "enriquecer.chave_quadro": f.enriquecer.chave_quadro,
             "enriquecer.colunas": f.enriquecer.colunas,
         }
         for campo, cols in campos.items():

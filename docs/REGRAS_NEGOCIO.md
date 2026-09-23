@@ -18,8 +18,9 @@
 |---|---|---|
 | HC (headcount) | _Ex.: colaboradores com vínculo ativo no último dia do período. Afastados contam? Aprendizes/estagiários contam?_ | ❓ |
 | Período | **Sempre o 1º dia do mês** (`periodo`). Período fora do dia 1 é ERRO (não é corrigido). | ✅ |
-| CHAVE M | `dd/MM/yyyy` do período + `_` + matrícula (ex.: `01/05/2026_000123`). Liga admitidos, demitidos e movimentações à **foto do quadro do mesmo mês**. Coluna de saída `CHAVE M`. | ✅ |
-| Foto do quadro | Fechamento de cada mês. | ✅ |
+| CHAVE M | `dd/MM/yyyy` do período + `_` + matrícula (ex.: `01/05/2026_000123`). Liga admitidos e movimentações à **foto do quadro do mesmo mês**. Coluna de saída `CHAVE M`. | ✅ |
+| CHAVE M-1 | CHAVE M do **mês anterior** (ex.: demissão em 05/2026 → `01/04/2026_000123`). Usada no merge dos demitidos. Coluna de saída `CHAVE M-1`. | ✅ |
+| Foto do quadro | Fechamento de cada mês. **O demitido sai do quadro** no mês da demissão. | ✅ |
 | Matrícula (`matricula`) | Chave do colaborador no RM (CHAPA). _É única entre coligadas ou a chave é coligada + chapa?_ | ❓ |
 | Turnover | _Fórmula usada nos BIs (fica no modelo semântico, mas vale registrar)._ | ❓ |
 
@@ -37,7 +38,7 @@
 | Q2 | Mês presente em mais de um arquivo: vale o arquivo **modificado por último** (AVISO lista os casos). `sobreposicao = "erro"` bloqueia em vez de escolher | `fluxos/quadro.py` | 🚧 |
 | Q3 | `chave_m` = CHAVE M do período e matrícula | `fluxos/quadro.py` | ✅ |
 | Q4 | `tempo_empresa_meses` = meses completos entre admissão e fim do período | `fluxos/quadro.py` | 🚧 |
-| Q5 | Situações fora do HC na reconciliação (padrão `D`: demitido que ainda aparece na foto do mês). _Afastados contam?_ | `config.toml: situacoes_fora_hc` | ❓ |
+| Q5 | Situações fora do HC na reconciliação (padrão: nenhuma, pois demitidos já saem do quadro). _Afastados contam?_ | `config.toml: situacoes_fora_hc` | ❓ |
 | Q6 | _Ex.: de-para de centro de custo para diretoria/gerência_ | | ❓ |
 
 ## 2. Admitidos
@@ -58,13 +59,17 @@
 
 - **Granularidade:** 1 linha por desligamento.
 - **Chave:** `matricula` + `data_demissao`.
-- **Enriquecimento:** pela CHAVE M do mês da demissão. Pressupõe que o demitido **aparece
-  na foto do fechamento do mês em que saiu** (ex.: situação `D`). _Confirmar; se não
-  aparecer, a validação `cobertura_quadro` acusa._
+- **Enriquecimento:** o demitido **sai do quadro** no mês da demissão, então o merge usa a
+  **CHAVE M-1**: a foto do fechamento do **mês anterior** (`chave = ["chave_m_1"]`,
+  `chave_quadro = ["chave_m"]`). Quem foi admitido e demitido no mesmo mês não está em
+  nenhuma foto: aparece na validação `cobertura_quadro`.
+- **Na base consolidada:** as linhas vêm da base de demitidos, com `base` = `Demitidos`.
 
 | # | Regra | Onde | Status |
 |---|---|---|---|
 | D1 | `periodo` = mês da `data_demissao` | `fluxos/demitidos.py` | 🚧 |
+| D1b | `chave_m_1` = CHAVE M-1; merge com o quadro por ela | `fluxos/demitidos.py` + `config.toml` | ✅ |
+| D1c | Rótulo na coluna `base` = `Demitidos` | `config.toml: rotulo` | ✅ |
 | D2 | `tempo_empresa_meses` = meses completos entre admissão e demissão | `fluxos/demitidos.py` | 🚧 |
 | D3 | _Classificação voluntário/involuntário a partir de `tipo_demissao`_ | | ❓ |
 
@@ -101,7 +106,8 @@
 ## 7. Base consolidada
 
 - Todas as bases empilhadas no layout de `config/esquema.toml`, mais a coluna `base`
-  (QUADRO, ADMITIDOS, DEMITIDOS, MOVIMENTACOES, TERCEIROS, ORCADO).
+  (QUADRO, ADMITIDOS, Demitidos, MOVIMENTACOES, TERCEIROS, ORCADO; cada rótulo é
+  configurável em `rotulo`).
 - Colunas que não se aplicam a uma base ficam vazias (ex.: `data_demissao` no quadro).
 
 ### Validações automáticas
@@ -122,5 +128,5 @@
 | `coluna_fora_esquema` | AVISO | fluxo criou coluna que não está no esquema |
 | `contrato_saida` | ERRO | base final diferente do esquema |
 
-_Reconciliação: como a foto é do fechamento do mês e inclui os demitidos do mês, eles
-são tirados da contagem de HC pela situação (`situacoes_fora_hc`)._
+_Reconciliação: como o demitido sai do quadro no mês da demissão, a conta fecha sem
+ajustes. `situacoes_fora_hc` fica para outras situações que não contam como HC._

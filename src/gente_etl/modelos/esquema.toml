@@ -45,7 +45,14 @@ nome = "chave_m"
 tipo = "texto"
 saida = "CHAVE M"
 aliases = ["CHAVE M", "CHAVE_M", "CHAVEM"]
-descricao = "Calculada: dd/MM/yyyy do período (dia 1) + '_' + matrícula. Liga admitidos, demitidos e movimentações à foto do quadro do mesmo mês."
+descricao = "Calculada: dd/MM/yyyy do período (dia 1) + '_' + matrícula. Liga admitidos e movimentações à foto do quadro do mesmo mês."
+
+[[coluna]]
+nome = "chave_m_1"
+tipo = "texto"
+saida = "CHAVE M-1"
+aliases = ["CHAVE M-1", "CHAVE_M_1", "CHAVE M 1"]
+descricao = "Calculada nos demitidos: CHAVE M do mês anterior à demissão (o demitido sai do quadro no mês em que sai). Usada no merge com o quadro."
 
 [[coluna]]
 nome = "nome"

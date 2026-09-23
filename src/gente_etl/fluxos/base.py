@@ -107,6 +107,7 @@ class Fluxo(ABC):
             lf,
             quadro.lazy(),
             chave=e.chave,
+            chave_referencia=e.chave_quadro or None,
             colunas=e.colunas or None,
             ignorar=e.ignorar,
         )

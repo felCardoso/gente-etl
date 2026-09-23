@@ -238,6 +238,16 @@ def chave_m(periodo: pl.Expr, matricula: pl.Expr) -> pl.Expr:
     return pl.concat_str([periodo.dt.strftime("%d/%m/%Y"), matricula], separator="_")
 
 
+def chave_m_anterior(periodo: pl.Expr, matricula: pl.Expr) -> pl.Expr:
+    """CHAVE M-1 = CHAVE M do mês anterior ao período. Ex.: período 01/05/2026 ->
+    ``01/04/2026_000123``.
+
+    Usada nos demitidos: eles saem do quadro no mês da demissão, então os dados vêm da
+    foto do fechamento do mês anterior. M: ``Date.AddMonths([periodo], -1)``.
+    """
+    return chave_m(periodo.dt.offset_by("-1mo"), matricula)
+
+
 def periodo_do_nome_arquivo(arquivo: pl.Expr) -> pl.Expr:
     """Extrai ``MM-AAAA`` do nome do arquivo ("Quadro 05-2026.xlsx" -> 01/05/2026).
 
@@ -276,6 +286,7 @@ def completar_com_referencia(
     ignorar: Iterable[str] = (),
     ordenar_referencia_por: Iterable[str] = ("periodo",),
     marcar: str | None = "_encontrado_referencia",
+    chave_referencia: list[str] | None = None,
 ) -> pl.LazyFrame:
     """Preenche colunas ausentes ou em branco a partir de uma base de referência.
 
@@ -285,10 +296,16 @@ def completar_com_referencia(
 
     M: ``Table.NestedJoin`` (LeftOuter) + ``Table.ExpandTableColumn`` + coluna
     condicional ``if [x] = null then [quadro.x] else [x]`` - aqui feito num único join.
+
+    ``chave_referencia`` permite chaves com nomes diferentes dos dois lados, na mesma
+    ordem de ``chave`` (ex.: ``chave_m_1`` do demitido com ``chave_m`` do quadro).
     """
+    chave_ref = chave_referencia or chave
+    if len(chave_ref) != len(chave):
+        raise ValueError("chave e chave_referencia precisam ter o mesmo tamanho")
     cols_ref = referencia.collect_schema().names()
     cols_lf = set(lf.collect_schema().names())
-    ignorar = set(ignorar) | set(chave)
+    ignorar = set(ignorar) | set(chave) | set(chave_ref)
     alvo = [
         c
         for c in (colunas or cols_ref)
@@ -297,8 +314,11 @@ def completar_com_referencia(
     if not alvo:
         return lf
 
-    ref = ultimo_por_chave(referencia, chave, ordenar_referencia_por).select(
-        [*chave, *[pl.col(c).alias(f"__ref_{c}") for c in alvo]]
+    ref = ultimo_por_chave(referencia, chave_ref, ordenar_referencia_por).select(
+        [
+            *[pl.col(r).alias(c) for r, c in zip(chave_ref, chave, strict=True)],
+            *[pl.col(c).alias(f"__ref_{c}") for c in alvo],
+        ]
     )
     if marcar:
         ref = ref.with_columns(pl.lit(True).alias(f"__ref_{marcar}"))

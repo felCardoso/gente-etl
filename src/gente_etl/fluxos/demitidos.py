@@ -1,4 +1,9 @@
-"""Demitidos. Atualização semanal. Completado com o quadro."""
+"""Demitidos. Atualização semanal.
+
+O demitido sai do quadro no mês da demissão, por isso é completado com a foto do
+fechamento do MÊS ANTERIOR, pela CHAVE M-1. Na base consolidada, as linhas de
+demitidos ficam com `base` = "Demitidos" (rótulo configurável).
+"""
 
 from __future__ import annotations
 
@@ -17,9 +22,13 @@ class Demitidos(Fluxo):
     colunas_data = ("data_admissao", "data_demissao")
 
     def transformar(self, lf: pl.LazyFrame) -> pl.LazyFrame:
-        # Período = mês do evento; CHAVE M liga à foto do quadro desse mesmo mês.
+        # Período = mês da demissão. CHAVE M é a do próprio mês; CHAVE M-1 (mês anterior)
+        # é a usada no merge com o quadro (config: enriquecer.chave = ["chave_m_1"]).
         lf = lf.with_columns(lp.inicio_mes(pl.col("data_demissao")).alias("periodo")).pipe(
             self.definir_chave_m
+        )
+        lf = lf.with_columns(
+            lp.chave_m_anterior(pl.col("periodo"), pl.col("matricula")).alias("chave_m_1")
         )
         lf = self.enriquecer_com_quadro(lf)
 

@@ -24,21 +24,29 @@ def test_execucao_completa_demo(cfg):
     assert set(parquet["base"]) == {
         "QUADRO",
         "ADMITIDOS",
-        "DEMITIDOS",
+        "Demitidos",
         "MOVIMENTACOES",
         "TERCEIROS",
         "ORCADO",
     }
 
     # enriquecimento: demitidos só têm chapa/data/motivo na origem; o resto vem do quadro
-    dem = parquet.filter(pl.col("base") == "DEMITIDOS")
+    dem = parquet.filter(pl.col("base") == "Demitidos")
     assert dem["nome"].null_count() == 0 and dem["centro_custo"].null_count() == 0
     assert dem["tempo_empresa_meses"].null_count() == 0
 
-    # CHAVE M: dd/MM/yyyy do período + "_" + matrícula; eventos acham a foto do mesmo mês
+    # CHAVE M: dd/MM/yyyy do período + "_" + matrícula; CHAVE M-1: mês anterior
     assert dem["CHAVE M"].to_list() == [
         f"{p:%d/%m/%Y}_{m}" for p, m in zip(dem["periodo"], dem["matricula"], strict=True)
     ]
+    assert dem["CHAVE M-1"].to_list() == [
+        f"{p.replace(month=p.month - 1) if p.month > 1 else p.replace(year=p.year - 1, month=12):%d/%m/%Y}_{m}"
+        for p, m in zip(dem["periodo"], dem["matricula"], strict=True)
+    ]
+    # demitido não está na foto do mês da saída: veio da foto do mês anterior
+    q_chaves = set(parquet.filter(pl.col("base") == "QUADRO")["CHAVE M"])
+    assert not set(dem["CHAVE M"]) & q_chaves
+    assert set(dem["CHAVE M-1"]) <= q_chaves
     cobertura = {r.escopo: r for r in ex.validacoes if r.regra == "cobertura_quadro"}
     assert set(cobertura) == {"admitidos", "demitidos", "movimentacoes"}
     assert all(r.ocorrencias == 0 for r in cobertura.values())
