@@ -132,9 +132,13 @@ Cada fluxo segue `extrair → transformar → validar`:
    **completados com o quadro do mesmo mês pela CHAVE M** (`dd/MM/yyyy_matricula`);
    demitidos, que saem do quadro no mês da demissão, pela **CHAVE M-1** (foto do mês
    anterior). Colunas ausentes ou vazias recebem o valor do quadro, e o valor da própria
-   base tem prioridade.
+   base tem prioridade. Quem foi admitido e demitido no mesmo mês não está em nenhuma foto
+   e fica só com os dados das próprias bases. Terceiros é uma base só, separada em três
+   rótulos e sem merge com o quadro.
 3. **Validar**: regras genéricas e específicas. Depois tudo é **empilhado** no layout do
-   esquema, com a coluna `base` indicando a origem, validado de novo e gravado de forma
+   esquema, com a coluna `BASE` indicando a origem (`QUADRO`, `ADMITIDOS`, `DEMITIDOS`,
+   `ORCADO`, `MOVIMENTACOES`, `QUADRO-TERCEIROS`, `ADMITIDOS-TERCEIROS`,
+   `DEMITIDOS-TERCEIROS`), validado de novo e gravado de forma
    atômica. O relatório (`relatorio.json` + CSVs de amostra de cada problema) fica em
    `<pasta_saida>/relatorios/`.
 

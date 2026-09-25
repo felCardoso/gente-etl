@@ -113,8 +113,22 @@ def test_contrato_saida(esquema):
 
     df = garantir_colunas(pl.LazyFrame({"matricula": ["1"]}), esquema).collect()
     assert _sev(
-        regras.contrato_saida(df.with_columns(pl.lit("Q").alias("base")), esquema, "base")
+        regras.contrato_saida(df.with_columns(pl.lit("Q").alias("BASE")), esquema, "BASE")
     ) == [Severidade.OK]
     ruim = df.drop("nome").with_columns(pl.lit(1).alias("extra"))
-    (r,) = regras.contrato_saida(ruim, esquema, "base")
+    (r,) = regras.contrato_saida(ruim, esquema, "BASE")
     assert r.severidade == Severidade.ERRO and "nome" in r.mensagem and "extra" in r.mensagem
+
+
+def test_cobertura_ignora_linhas_sem_foto_por_regra():
+    df = pl.DataFrame(
+        {
+            "_encontrado_referencia": [True, True, False, False],
+            "_sem_quadro_esperado": [False, False, True, False],
+        }
+    )
+    (r,) = regras.cobertura_enriquecimento(df, "x", 0.9, ignorar="_sem_quadro_esperado")
+    assert r.ocorrencias == 1 and r.severidade == Severidade.AVISO
+    assert "1 linha(s) sem foto por regra" in r.mensagem
+    (r,) = regras.cobertura_enriquecimento(df.slice(2, 1), "x", 0.9, ignorar="_sem_quadro_esperado")
+    assert r.severidade == Severidade.OK

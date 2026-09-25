@@ -27,3 +27,8 @@ class Admitidos(Fluxo):
 
         # >>> PONTO DE MIGRAÇÃO: colunas calculadas / filtros específicos de admitidos.
         return lf
+
+    def sem_quadro_esperado(self, df: pl.DataFrame) -> pl.Series:
+        # Admitido e demitido no mesmo mês não aparece na foto: fica só com os dados
+        # da própria base e não conta como falha de merge.
+        return self.evento_no_mesmo_mes(df, "demitidos", "data_demissao")

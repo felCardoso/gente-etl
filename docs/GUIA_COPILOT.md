@@ -22,7 +22,7 @@
   | `admitidos`     | semanal     | Completado com colunas/valores do quadro |
   | `demitidos`     | semanal     | Completado com colunas/valores do quadro |
   | `movimentacoes` | mensal      | Transferências, promoções etc. |
-  | `terceiros`     | semanal     | Prestadores, sem vínculo com o quadro |
+  | `terceiros`     | semanal     | Prestadores. **Uma base só**, separada em QUADRO-, ADMITIDOS- e DEMITIDOS-TERCEIROS; não é completada pelo quadro |
   | `orcado`        | semestral   | 1 linha = 1 HC orçado; ano inteiro; `periodo` = 1º dia de cada mês |
 
 - Hoje a lógica roda em **dataflows do Power Platform/Fabric** e consome capacidade (CU).
@@ -39,7 +39,15 @@
   (`lp.chave_m`, coluna `chave_m`/`CHAVE M`).
 - **Demitidos saem do quadro** no mês da demissão: o merge deles usa a **CHAVE M-1**,
   a foto do **mês anterior** (`lp.chave_m_anterior`, coluna `chave_m_1`/`CHAVE M-1`,
-  `enriquecer.chave_quadro = ["chave_m"]`). Na base final, `base` = `Demitidos`.
+  `enriquecer.chave_quadro = ["chave_m"]`).
+- **Admitido e demitido no mesmo mês** não está em foto nenhuma: fica só com os dados das
+  bases de admitidos e demitidos (sem colunas do quadro) e não conta na cobertura do merge.
+- Coluna **`BASE`** da saída: `QUADRO`, `ADMITIDOS`, `DEMITIDOS`, `ORCADO`, `MOVIMENTACOES`,
+  `QUADRO-TERCEIROS`, `ADMITIDOS-TERCEIROS`, `DEMITIDOS-TERCEIROS`.
+- Terceiros: a regra que separa os três rótulos está no dataflow de terceiros e deve ser
+  migrada para `fluxos/terceiros.py` (`classificar`). Enquanto isso vale o de-para do
+  `config.toml` (`coluna_classificacao` + `classificacao`). Nos demitidos de terceiros a
+  chave é **período + nome** (não há matrícula).
 - Os arquivos do quadro podem ser de um ano (`Quadro 2020`), de vários anos
   (`Quadro 2018-2019`) ou de um mês (`Quadro 05-2026`). O período vem da coluna de
   competência ou do nome do arquivo; mês repetido entre arquivos usa o mais recente.
@@ -73,10 +81,16 @@ Ciclo de cada fluxo (`fluxos/base.py`):
    os tipos do esquema (datas em qualquer formato, número com vírgula etc.).
 3. **`transformar(lf)`**: **regras de negócio**. É o único método que normalmente precisa
    ser escrito. Recebe e devolve `pl.LazyFrame` com os **nomes internos** das colunas.
-4. **`validar(df)`**: obrigatórias, chave única, datas plausíveis, falhas de conversão e
-   cobertura do enriquecimento. Pode ser estendido com regras do fluxo.
+4. **`validar(df)`**: obrigatórias, chave única, datas plausíveis e falhas de conversão.
+   Pode ser estendido com regras do fluxo.
+5. **`validar_final(df)`**: roda depois de todos os fluxos (pode olhar
+   `ctx.resultados`). Faz a cobertura do enriquecimento, descontando as linhas de
+   `sem_quadro_esperado` (ex.: admitido e demitido no mesmo mês).
 
-Depois o `pipeline` empilha tudo no layout do esquema, com a coluna `base` indicando a
+Um fluxo que gera mais de um rótulo na coluna `BASE` (terceiros) cria a coluna interna
+`_rotulo_base` e sobrescreve `rotulos()`.
+
+Depois o `pipeline` empilha tudo no layout do esquema, com a coluna `BASE` indicando a
 origem, valida o consolidado (contrato de saída, reconciliação do quadro, variação de
 volume) e grava CSV e Parquet.
 
@@ -227,7 +241,7 @@ def test_quadro_exclui_afastados(cfg):  # fixture `cfg` = ambiente demo (tests/c
 
 ```python
 import polars as pl
-novo = pl.read_parquet("saida/base_gente.parquet").filter(pl.col("base") == "QUADRO")
+novo = pl.read_parquet("saida/base_gente.parquet").filter(pl.col("BASE") == "QUADRO")
 antigo = pl.read_csv("export_dataflow_quadro.csv", separator=";", infer_schema=False)
 # 1) mesmas colunas, mesma ordem?  2) mesma contagem por período?
 # 3) anti-join pela chave nos dois sentidos  4) diferenças coluna a coluna nas chaves comuns

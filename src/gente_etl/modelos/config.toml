@@ -24,7 +24,7 @@ pasta_cache = "../.cache"            # cache local de leitura dos XLSX (pode apa
 nome_base = "base_gente"             # gera base_gente.parquet e base_gente.csv
 formatos = ["parquet", "csv"]
 gravar_por_fluxo = false             # true = também base_gente_quadro.parquet etc.
-coluna_base = "base"                 # coluna que diz de qual fluxo veio a linha
+coluna_base = "BASE"                 # coluna que diz de qual base veio a linha
 leitura_paralela = 4                 # arquivos lidos ao mesmo tempo
 
 [csv]
@@ -49,7 +49,7 @@ situacoes_fora_hc = []                  # situações do quadro que não contam 
 #   linha_cabecalho  linha do cabeçalho (0 = primeira)
 #   obrigatorias     colunas que não podem ficar vazias (ERRO)
 #   chave            combinação que deve ser única (ERRO se duplicar)
-#   rotulo           valor da coluna `base` (padrão: nome do fluxo em maiúsculas)
+#   rotulo           valor da coluna BASE (padrão: nome do fluxo em maiúsculas)
 #   [fluxos.X.enriquecer]  completa colunas vazias/ausentes com o quadro.
 #                          chave         coluna(s) do fluxo usadas no merge
 #                          chave_quadro  coluna(s) correspondentes no quadro (vazio = iguais)
@@ -83,7 +83,6 @@ ignorar = ["periodo", "tempo_empresa_meses"]
 
 [fluxos.demitidos]
 arquivos = ["%OneDriveCommercial%/Gente - Bases/Demitidos/*.xlsx"]
-rotulo = "Demitidos"
 chave = ["matricula", "data_demissao"]
 obrigatorias = ["matricula", "data_demissao"]
 
@@ -103,10 +102,27 @@ ativo = true
 chave = ["chave_m"]
 ignorar = ["periodo", "tempo_empresa_meses"]
 
+# Terceiros: uma base só, separada em QUADRO-, ADMITIDOS- e DEMITIDOS-TERCEIROS.
+# Não é completada pelo quadro.
 [fluxos.terceiros]
 arquivos = ["%OneDriveCommercial%/Gente - Bases/Terceiros/*.xlsx"]
-chave = ["periodo", "cpf"]
-obrigatorias = ["cpf", "nome", "fornecedor"]
+chave = ["periodo", "cpf"]           # chave dos rótulos sem chave própria em parametros.chaves
+obrigatorias = ["nome", "fornecedor"]
+
+[fluxos.terceiros.parametros]
+# De-para provisório: coluna da planilha e o rótulo de cada valor (sem acento e sem
+# maiúsculas, como nos aliases). A regra oficial está no dataflow de terceiros: ao
+# migrar, substitua em fluxos/terceiros.py (classificar). Linha sem rótulo = ERRO.
+coluna_classificacao = "TIPO"
+
+[fluxos.terceiros.parametros.classificacao]
+"ATIVO" = "QUADRO-TERCEIROS"
+"ADMITIDO" = "ADMITIDOS-TERCEIROS"
+"DEMITIDO" = "DEMITIDOS-TERCEIROS"
+
+# Chave de unicidade por rótulo. Sem matrícula, demitidos = período + nome.
+[fluxos.terceiros.parametros.chaves]
+"DEMITIDOS-TERCEIROS" = ["periodo", "nome"]
 
 [fluxos.orcado]
 arquivos = ["%OneDriveCommercial%/Gente - Bases/Orcado/*.xlsx"]

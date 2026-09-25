@@ -147,6 +147,11 @@ def gerar_dados(
                 ativos[c.chapa] = c
                 admitidos.append((c, c.admissao))
                 seq += 1
+            # admitido e demitido no mesmo mês: não aparece em nenhuma foto
+            c = _novo(rng, seq, mes + timedelta(days=rng.randint(0, 9)))
+            seq += 1
+            admitidos.append((c, c.admissao))
+            demitidos.append((c, c.admissao + timedelta(days=rng.randint(1, 15)), "Pedido"))
             for chapa in rng.sample(sorted(ativos), k=max(1, len(ativos) // 50)):
                 c = ativos[chapa]
                 nova_ger = rng.choice(DIRETORIAS[c.diretoria])
@@ -242,19 +247,25 @@ def gerar_dados(
         _gravar(pl.DataFrame(movimentos), pasta / "movimentacoes" / "movimentacoes.xlsx")
     ]
 
-    # ---- Terceiros: foto do último mês
+    # ---- Terceiros: uma base só; a coluna TIPO separa quadro, admitidos e demitidos
     ultimo_mes = fotos[-1][0]
+    nomes_terc: list[str] = []
+    while len(nomes_terc) < max(5, colaboradores // 10):  # nome único (chave dos demitidos)
+        nome = f"{rng.choice(PRIMEIROS)} {rng.choice(SOBRENOMES)} {rng.choice(SOBRENOMES)}"
+        if nome not in nomes_terc:
+            nomes_terc.append(nome)
     terc = pl.DataFrame(
         [
             {
                 "COMPETENCIA": ultimo_mes,
+                "TIPO": "Admitido" if k % 10 == 1 else "Demitido" if k % 10 == 2 else "Ativo",
                 "CPF": f"{rng.randrange(10**9, 10**11):011d}",
-                "NOME": f"{rng.choice(PRIMEIROS)} {rng.choice(SOBRENOMES)}",
+                "NOME": nome,
                 "FORNECEDOR": rng.choice(FORNECEDORES),
                 "CODSECAO": f"CC{rng.randint(100, 999)}",
                 "FUNCAO": rng.choice(CARGOS),
             }
-            for _ in range(max(5, colaboradores // 10))
+            for k, nome in enumerate(nomes_terc)
         ]
     )
     arquivos["terceiros"] = [_gravar(terc, pasta / "terceiros" / "terceiros.xlsx")]

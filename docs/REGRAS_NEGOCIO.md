@@ -21,6 +21,8 @@
 | CHAVE M | `dd/MM/yyyy` do período + `_` + matrícula (ex.: `01/05/2026_000123`). Liga admitidos e movimentações à **foto do quadro do mesmo mês**. Coluna de saída `CHAVE M`. | ✅ |
 | CHAVE M-1 | CHAVE M do **mês anterior** (ex.: demissão em 05/2026 → `01/04/2026_000123`). Usada no merge dos demitidos. Coluna de saída `CHAVE M-1`. | ✅ |
 | Foto do quadro | Fechamento de cada mês. **O demitido sai do quadro** no mês da demissão. | ✅ |
+| Admitido e demitido no mesmo mês | Não está em nenhuma foto do quadro: aparece em ADMITIDOS e DEMITIDOS **só com os dados dessas bases** (sem colunas do quadro) e não conta como falha de merge. | ✅ |
+| Coluna `BASE` | Origem da linha na base consolidada: `QUADRO`, `ADMITIDOS`, `DEMITIDOS`, `ORCADO`, `MOVIMENTACOES`, `QUADRO-TERCEIROS`, `ADMITIDOS-TERCEIROS`, `DEMITIDOS-TERCEIROS`. | ✅ |
 | Matrícula (`matricula`) | Chave do colaborador no RM (CHAPA). _É única entre coligadas ou a chave é coligada + chapa?_ | ❓ |
 | Turnover | _Fórmula usada nos BIs (fica no modelo semântico, mas vale registrar)._ | ❓ |
 
@@ -52,6 +54,7 @@
 |---|---|---|---|
 | A1 | `periodo` = mês da `data_admissao` | `fluxos/admitidos.py` | 🚧 |
 | A2 | Completa com o quadro pela CHAVE M (exceto `periodo` e `tempo_empresa_meses`) | `config.toml: [fluxos.admitidos.enriquecer]` | ✅ |
+| A2b | Demitido no mesmo mês da admissão: fica só com os dados da base de admitidos | `fluxos/admitidos.py: sem_quadro_esperado` | ✅ |
 | A3 | _Readmissão: mesma matrícula volta? Conta como admissão?_ | | ❓ |
 | A4 | _Transferência entre coligadas conta como admissão?_ | | ❓ |
 
@@ -62,14 +65,16 @@
 - **Enriquecimento:** o demitido **sai do quadro** no mês da demissão, então o merge usa a
   **CHAVE M-1**: a foto do fechamento do **mês anterior** (`chave = ["chave_m_1"]`,
   `chave_quadro = ["chave_m"]`). Quem foi admitido e demitido no mesmo mês não está em
-  nenhuma foto: aparece na validação `cobertura_quadro`.
-- **Na base consolidada:** as linhas vêm da base de demitidos, com `base` = `Demitidos`.
+  nenhuma foto: fica só com os dados da base de demitidos e não conta na
+  `cobertura_quadro`.
+- **Na base consolidada:** as linhas vêm da base de demitidos, com `BASE` = `DEMITIDOS`.
 
 | # | Regra | Onde | Status |
 |---|---|---|---|
 | D1 | `periodo` = mês da `data_demissao` | `fluxos/demitidos.py` | 🚧 |
 | D1b | `chave_m_1` = CHAVE M-1; merge com o quadro por ela | `fluxos/demitidos.py` + `config.toml` | ✅ |
-| D1c | Rótulo na coluna `base` = `Demitidos` | `config.toml: rotulo` | ✅ |
+| D1c | Rótulo na coluna `BASE` = `DEMITIDOS` | padrão (nome do fluxo) | ✅ |
+| D1d | Admitido no mesmo mês da demissão: fica só com os dados da base de demitidos | `fluxos/demitidos.py: sem_quadro_esperado` | ✅ |
 | D2 | `tempo_empresa_meses` = meses completos entre admissão e demissão | `fluxos/demitidos.py` | 🚧 |
 | D3 | _Classificação voluntário/involuntário a partir de `tipo_demissao`_ | | ❓ |
 
@@ -85,12 +90,18 @@
 
 ## 5. Terceiros
 
-- **Granularidade:** 1 linha por prestador por período.
-- **Chave:** `periodo` + `cpf`.
+- **Origem:** **uma base só**, separada em três rótulos na coluna `BASE`:
+  `QUADRO-TERCEIROS`, `ADMITIDOS-TERCEIROS` e `DEMITIDOS-TERCEIROS`.
+- **Não é completada pelo quadro** (nem pelo quadro de terceiros).
+- **Chave:** `DEMITIDOS-TERCEIROS` = `periodo` + `nome` (não há matrícula). Os demais
+  rótulos usam `chave` do `config.toml` (_a confirmar_).
 
 | # | Regra | Onde | Status |
 |---|---|---|---|
 | T1 | `periodo` da planilha ou mês de referência | `fluxos/terceiros.py` | 🚧 |
+| T2 | Separação em QUADRO-/ADMITIDOS-/DEMITIDOS-TERCEIROS. _A regra oficial está no dataflow de terceiros: migrar para `classificar`._ Hoje: de-para da coluna `coluna_classificacao`. Linha sem rótulo = ERRO | `fluxos/terceiros.py: classificar` | ❓ |
+| T3 | Chave de `DEMITIDOS-TERCEIROS` = período + nome | `fluxos/terceiros.py: CHAVES_PADRAO` | ✅ |
+| T4 | Sem merge com o quadro | `fluxos/terceiros.py` | ✅ |
 
 ## 6. Orçado
 
@@ -105,9 +116,9 @@
 
 ## 7. Base consolidada
 
-- Todas as bases empilhadas no layout de `config/esquema.toml`, mais a coluna `base`
-  (QUADRO, ADMITIDOS, Demitidos, MOVIMENTACOES, TERCEIROS, ORCADO; cada rótulo é
-  configurável em `rotulo`).
+- Todas as bases empilhadas no layout de `config/esquema.toml`, mais a coluna `BASE`
+  (QUADRO, ADMITIDOS, DEMITIDOS, ORCADO, MOVIMENTACOES, QUADRO-TERCEIROS,
+  ADMITIDOS-TERCEIROS, DEMITIDOS-TERCEIROS).
 - Colunas que não se aplicam a uma base ficam vazias (ex.: `data_demissao` no quadro).
 
 ### Validações automáticas
@@ -119,7 +130,8 @@
 | `chave_duplicada` | ERRO | combinação de `chave` repetida |
 | `falha_conversao` | AVISO | valor preenchido que não virou data/número |
 | `data_implausivel` | AVISO | datas antes de 1950 ou mais de 400 dias após a referência |
-| `cobertura_quadro` | AVISO | % de linhas encontradas no quadro abaixo do mínimo |
+| `cobertura_quadro` | AVISO | % de linhas encontradas no quadro abaixo do mínimo (sem contar admitido e demitido no mesmo mês) |
+| `terceiros_sem_classificacao` | ERRO | linha de terceiros sem rótulo QUADRO/ADMITIDOS/DEMITIDOS-TERCEIROS |
 | `reconciliacao` | AVISO | quadro(t) ≠ quadro(t−1) + admitidos(t) − demitidos(t), sem as `situacoes_fora_hc` |
 | `periodo_nao_inicio_mes` | ERRO | período fora do dia 1 (qualquer base) |
 | `periodo_em_varios_arquivos` | AVISO | mesmo mês do quadro em 2+ arquivos (usado o mais recente) |

@@ -8,6 +8,6 @@ from gente_etl.fluxos import (  # noqa: F401  (importados para registrar)
     quadro,
     terceiros,
 )
-from gente_etl.fluxos.base import REGISTRO, Contexto, Fluxo, registrar
+from gente_etl.fluxos.base import COLUNA_ROTULO, REGISTRO, Contexto, Fluxo, registrar
 
-__all__ = ["REGISTRO", "Contexto", "Fluxo", "registrar"]
+__all__ = ["COLUNA_ROTULO", "REGISTRO", "Contexto", "Fluxo", "registrar"]

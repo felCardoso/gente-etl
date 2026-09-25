@@ -36,6 +36,7 @@ segura de trocar o motor sem quebrar nada:
 > `Table.SelectColumns` no dataflow fino para devolver exatamente a lista original.
 > Com `gravar_por_fluxo = true` no `config.toml`, cada base também é gravada num
 > arquivo próprio (`base_gente_quadro.parquet` etc.), o que deixa o dataflow ainda mais leve.
+> O de terceiros (`base_gente_terceiros.parquet`) traz os três rótulos de terceiros.
 
 ## Parquet ou CSV?
 
@@ -55,8 +56,10 @@ let
     Base    = Parquet.Document(Arquivo),
 
     // Uma entidade por base: troque o filtro em cada consulta
-    Quadro  = Table.SelectRows(Base, each [base] = "QUADRO"),
-    SemBase = Table.RemoveColumns(Quadro, {"base"})
+    // Rótulos: QUADRO, ADMITIDOS, DEMITIDOS, ORCADO, MOVIMENTACOES,
+    //          QUADRO-TERCEIROS, ADMITIDOS-TERCEIROS, DEMITIDOS-TERCEIROS
+    Quadro  = Table.SelectRows(Base, each [BASE] = "QUADRO"),
+    SemBase = Table.RemoveColumns(Quadro, {"BASE"})
 in
     SemBase
 ```

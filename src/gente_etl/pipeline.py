@@ -7,6 +7,7 @@ A CLI só apresenta; toda a lógica está aqui para poder ser testada e reutiliz
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -17,7 +18,7 @@ import polars as pl
 
 from gente_etl.comum import limpeza as lp
 from gente_etl.config import Config
-from gente_etl.fluxos import REGISTRO, Contexto
+from gente_etl.fluxos import COLUNA_ROTULO, REGISTRO, Contexto, Fluxo
 from gente_etl.io.excel import ResultadoLeitura
 from gente_etl.io.saida import gravar, preparar_para_saida
 from gente_etl.validacao import regras
@@ -107,7 +108,11 @@ def fluxos_ativos(cfg: Config) -> list[str]:
 
 
 def consolidar(ctx: Contexto, nomes: list[str]) -> pl.DataFrame:
-    """Empilha as bases no layout do esquema + coluna de origem (``base``)."""
+    """Empilha as bases no layout do esquema + coluna de origem (``BASE``).
+
+    O rótulo é o do fluxo (``Config.rotulo``), ou o da própria linha quando o fluxo
+    cria ``_rotulo_base`` (ex.: terceiros, que gera três rótulos).
+    """
     cfg = ctx.config
     col_base = cfg.geral.coluna_base
     esperado = {c.nome: lp.DTYPES[c.tipo] for c in cfg.esq.coluna}
@@ -125,11 +130,16 @@ def consolidar(ctx: Contexto, nomes: list[str]) -> pl.DataFrame:
                 + ", ".join(divergentes)
                 + ". Ajuste o cálculo no fluxo ou o tipo em esquema.toml."
             )
+        rotulo = (
+            pl.col(COLUNA_ROTULO)
+            if COLUNA_ROTULO in df.columns
+            else pl.lit(cfg.rotulo(nome), dtype=pl.String)
+        )
         partes.append(
             df.lazy()
-            .pipe(lp.garantir_colunas, cfg.esq, manter_internas=False)
-            .with_columns(pl.lit(cfg.rotulo(nome)).alias(col_base))
-            .select([col_base, *cfg.esq.nomes])
+            .with_columns(rotulo.alias(COLUNA_ROTULO))
+            .pipe(lp.garantir_colunas, cfg.esq)
+            .select([pl.col(COLUNA_ROTULO).alias(col_base), *cfg.esq.nomes])
         )
     return pl.concat(partes, how="vertical").collect()
 
@@ -175,7 +185,9 @@ def gravar_relatorio(cfg: Config, execucao: Execucao) -> Path:
     for i, r in enumerate(execucao.validacoes, 1):
         item = r.como_dict()
         if r.amostra is not None and r.amostra.height:
-            arq = pasta / f"{i:02d}-{r.escopo}-{r.regra}.csv"
+            # escopo pode ter "/" (ex.: terceiros/DEMITIDOS-TERCEIROS): nome seguro no Windows
+            nome = re.sub(r"[^\w.-]+", "_", f"{i:02d}-{r.escopo}-{r.regra}")
+            arq = pasta / f"{nome}.csv"
             r.amostra.select(
                 [c for c in r.amostra.columns if c != "_encontrado_referencia"]
             ).write_csv(arq, separator=cfg.csv.separador, include_bom=True)
@@ -219,17 +231,21 @@ def executar(
     ordem = ordenar_fluxos(pedidos, cfg)
 
     # 1) Fluxos -------------------------------------------------------------------------
+    instancias: dict[str, Fluxo] = {}
     for nome in ordem:
         classe = REGISTRO[nome]
         obs.etapa_iniciada(nome, classe.titulo)
         t = time.perf_counter()
-        fluxo = classe(ctx)
+        fluxo = instancias[nome] = classe(ctx)
         df = fluxo.executar()
         ctx.resultados[nome] = df
         execucao.validacoes += fluxo.validar(df)
         seg = time.perf_counter() - t
         execucao.fluxos.append(ResumoFluxo(nome, classe.titulo, df.height, df.width, seg))
         obs.etapa_concluida(nome, df.height, seg)
+    # Validações que cruzam fluxos (ex.: admitido e demitido no mesmo mês).
+    for nome, fluxo in instancias.items():
+        execucao.validacoes += fluxo.validar_final(ctx.resultados[nome])
 
     # 2) Consolidação ------------------------------------------------------------------
     obs.etapa_iniciada("consolidar", "Consolidando e validando")
@@ -277,7 +293,7 @@ def executar(
         )
         if cfg.geral.gravar_por_fluxo:
             for nome in ordem:
-                parte = consolidado.filter(pl.col(col_base) == cfg.rotulo(nome))
+                parte = consolidado.filter(pl.col(col_base).is_in(instancias[nome].rotulos()))
                 execucao.arquivos_gravados += gravar(
                     preparar_para_saida(parte, cfg), f"{cfg.geral.nome_base}_{nome}", cfg
                 )

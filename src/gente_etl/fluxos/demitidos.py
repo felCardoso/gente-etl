@@ -2,7 +2,8 @@
 
 O demitido sai do quadro no mês da demissão, por isso é completado com a foto do
 fechamento do MÊS ANTERIOR, pela CHAVE M-1. Na base consolidada, as linhas de
-demitidos ficam com `base` = "Demitidos" (rótulo configurável).
+demitidos ficam com BASE = "DEMITIDOS". Quem foi admitido e demitido no mesmo mês
+não está em nenhuma foto e fica só com os dados da própria base.
 """
 
 from __future__ import annotations
@@ -40,3 +41,8 @@ class Demitidos(Fluxo):
             )
         )
         return lf
+
+    def sem_quadro_esperado(self, df: pl.DataFrame) -> pl.Series:
+        # Admitido e demitido no mesmo mês não está na foto do mês anterior: fica só
+        # com os dados da própria base e não conta como falha de merge.
+        return self.evento_no_mesmo_mes(df, "admitidos", "data_admissao")

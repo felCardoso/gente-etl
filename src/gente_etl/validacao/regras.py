@@ -153,10 +153,25 @@ def datas_plausiveis(
 
 
 def cobertura_enriquecimento(
-    df: pl.DataFrame, escopo: str, minimo: float, marcador: str = "_encontrado_referencia"
+    df: pl.DataFrame,
+    escopo: str,
+    minimo: float,
+    marcador: str = "_encontrado_referencia",
+    ignorar: str | None = None,
 ) -> list[Resultado]:
+    """% de linhas encontradas no quadro. ``ignorar`` = coluna booleana das linhas que,
+    por regra, não têm foto (ex.: admitido e demitido no mesmo mês)."""
     if marcador not in df.columns or df.height == 0:
         return []
+    sem_foto = 0
+    if ignorar and ignorar in df.columns:
+        sem_foto = int(df[ignorar].sum())
+        df = df.filter(~pl.col(ignorar))
+    obs = f" {sem_foto} linha(s) sem foto por regra, fora da conta." if sem_foto else ""
+    if df.height == 0:
+        return [
+            Resultado("cobertura_quadro", escopo, Severidade.OK, "Nenhuma linha a conferir." + obs)
+        ]
     achados = int(df[marcador].sum())
     taxa = achados / df.height
     nao = df.filter(~pl.col(marcador))
@@ -167,7 +182,7 @@ def cobertura_enriquecimento(
             escopo,
             sev,
             f"{taxa:.1%} das linhas encontradas no quadro ({df.height - achados} sem correspondência;"
-            f" mínimo {minimo:.0%}).",
+            f" mínimo {minimo:.0%}).{obs}",
             df.height - achados,
             nao.head(50) if nao.height else None,
         )

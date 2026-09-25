@@ -115,7 +115,7 @@ class ConfigGeral(_Modelo):
     nome_base: str = "base_gente"
     formatos: list[FormatoSaida] = Field(default_factory=lambda: ["parquet", "csv"])
     gravar_por_fluxo: bool = Field(default=False, description="Grava também um arquivo por fluxo.")
-    coluna_base: str = Field(default="base", description="Coluna que identifica a origem da linha.")
+    coluna_base: str = Field(default="BASE", description="Coluna que identifica a origem da linha.")
     leitura_paralela: int = Field(default=4, ge=1, le=32)
 
 
@@ -146,7 +146,7 @@ class ConfigEnriquecimento(_Modelo):
 
 class ConfigFluxo(_Modelo):
     ativo: bool = True
-    rotulo: str | None = Field(default=None, description="Valor da coluna 'base'. Padrão: NOME.")
+    rotulo: str | None = Field(default=None, description="Valor da coluna BASE. Padrão: NOME.")
     arquivos: list[str] = Field(default_factory=list, description="Caminhos ou padrões glob.")
     aba: str | int = Field(default=0, description="Nome, índice (0 = primeira) ou '*' (todas).")
     linha_cabecalho: int = Field(default=0, ge=0)

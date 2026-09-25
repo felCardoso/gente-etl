@@ -2,9 +2,10 @@
 
 Um fluxo = uma base de origem (quadro, admitidos, ...). O ciclo é sempre:
 
-    extrair()     -> lê XLSX (com cache) e aplica as tratativas comuns (padronizar)
-    transformar() -> regras de negócio específicas do fluxo  <- ONDE A LÓGICA DO M ENTRA
-    validar()     -> regras genéricas (obrigatórias, chave, datas) + específicas
+    extrair()        -> lê XLSX (com cache) e aplica as tratativas comuns (padronizar)
+    transformar()    -> regras de negócio específicas do fluxo  <- ONDE A LÓGICA DO M ENTRA
+    validar()        -> regras genéricas (obrigatórias, chave, datas) + específicas
+    validar_final()  -> regras que dependem de outros fluxos (roda depois de todos)
 
 Para criar um fluxo novo basta uma subclasse decorada com ``@registrar``.
 """
@@ -26,6 +27,14 @@ from gente_etl.validacao import regras
 from gente_etl.validacao.resultado import Resultado
 
 REGISTRO: dict[str, type[Fluxo]] = {}
+
+#: Coluna interna com o rótulo da coluna BASE de cada linha. Só é necessária quando um
+#: fluxo gera mais de um rótulo (ex.: terceiros); nos demais vale ``Config.rotulo``.
+COLUNA_ROTULO = "_rotulo_base"
+
+#: Marca as linhas que, por regra, não têm foto do quadro (ex.: admitido e demitido
+#: no mesmo mês). Elas não contam na cobertura do merge.
+COLUNA_SEM_QUADRO = "_sem_quadro_esperado"
 
 
 def registrar(cls: type[Fluxo]) -> type[Fluxo]:
@@ -112,6 +121,11 @@ class Fluxo(ABC):
             ignorar=e.ignorar,
         )
 
+    # ------------------------------------------------------------------ rótulos
+    def rotulos(self) -> list[str]:
+        """Valores que este fluxo gera na coluna BASE."""
+        return [self.ctx.config.rotulo(self.nome)]
+
     # ------------------------------------------------------------------ validar
     def validar(self, df: pl.DataFrame) -> list[Resultado]:
         v = self.ctx.config.validacao
@@ -124,9 +138,52 @@ class Fluxo(ABC):
         )
         if self._bruto is not None:
             res += regras.falhas_conversao(self._bruto, self.ctx.esquema, self.nome)
-        if self.cfg.enriquecer.ativo:
-            res += regras.cobertura_enriquecimento(df, self.nome, v.cobertura_minima_enriquecimento)
         return res
+
+    def sem_quadro_esperado(self, df: pl.DataFrame) -> pl.Series | None:
+        """Linhas que, por regra, não estão em nenhuma foto do quadro. Sobrescreva."""
+        return None
+
+    def evento_no_mesmo_mes(
+        self, df: pl.DataFrame, outro_fluxo: str, coluna_data: str
+    ) -> pl.Series:
+        """True quando a pessoa tem o outro evento (admissão/demissão) no mesmo mês.
+
+        Olha a própria coluna de data (se a base tiver) e o resultado do outro fluxo
+        pela matrícula + período (se ele rodou nesta execução).
+        """
+        marca = pl.Series("_mesmo_mes", [False] * df.height)
+        if coluna_data in df.columns:
+            marca = (
+                marca
+                | df.select(
+                    (lp.inicio_mes(pl.col(coluna_data)) == pl.col("periodo")).fill_null(False)
+                ).to_series()
+            )
+        outro = self.ctx.resultados.get(outro_fluxo)
+        chave = ["matricula", "periodo"]
+        if outro is not None and set(chave) <= set(outro.columns) and set(chave) <= set(df.columns):
+            eventos = outro.select(chave).unique().with_columns(pl.lit(True).alias("_evento"))
+            marca = marca | (
+                df.select(chave)
+                .join(eventos, on=chave, how="left", maintain_order="left")["_evento"]
+                .fill_null(False)
+            )
+        return marca
+
+    def validar_final(self, df: pl.DataFrame) -> list[Resultado]:
+        """Validações que dependem dos outros fluxos (``ctx.resultados`` já completo)."""
+        if not self.cfg.enriquecer.ativo:
+            return []
+        esperado = self.sem_quadro_esperado(df)
+        if esperado is not None:
+            df = df.with_columns(esperado.fill_null(False).alias(COLUNA_SEM_QUADRO))
+        return regras.cobertura_enriquecimento(
+            df,
+            self.nome,
+            self.ctx.config.validacao.cobertura_minima_enriquecimento,
+            ignorar=COLUNA_SEM_QUADRO if esperado is not None else None,
+        )
 
     # ----------------------------------------------------------------- executar
     def executar(self) -> pl.DataFrame:
