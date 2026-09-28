@@ -216,3 +216,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- gente-etl ---
+# Dados NUNCA vão para o git (LGPD)
+*.xlsx
+*.xlsm
+*.xls
+*.csv
+*.parquet
+.cache/
+saida/
+dados/
+demo/
+relatorios/
+# Configuração local de cada pessoa (caminhos do OneDrive/SharePoint)
+config/config.toml
